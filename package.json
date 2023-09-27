@@ -1,0 +1,27 @@
+{
+  "name": "sdk-ts",
+  "version": "1.0.0",
+  "description": "A typescript library for interacting with Perennial V2 markets",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Perennial",
+    "sdk",
+    "typescript",
+    "web3"
+  ],
+  "author": "l3wi",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "@pythnetwork/pyth-evm-js": "^1.29.0",
+    "date-fns": "^2.30.0",
+    "viem": "^1.12.2"
+  }
+}
