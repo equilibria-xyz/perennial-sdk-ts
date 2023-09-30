@@ -1,391 +1,375 @@
-// import { EvmPriceServiceConnection } from "@pythnetwork/pyth-evm-js";
-// import {
-//   Address,
-//   Hex,
-//   decodeFunctionResult,
-//   encodeFunctionData,
-//   encodePacked,
-//   getAbiItem,
-//   getAddress,
-//   getContractAddress,
-//   keccak256,
-//   pad,
-//   toHex,
-//   zeroAddress,
-// } from "viem";
+import { EvmPriceServiceConnection } from "@pythnetwork/pyth-evm-js";
+import {
+  Address,
+  Hex,
+  PublicClient,
+  decodeFunctionResult,
+  encodeFunctionData,
+  encodePacked,
+  getAbiItem,
+  getAddress,
+  getContractAddress,
+  keccak256,
+  pad,
+  toHex,
+  zeroAddress,
+} from "viem";
 
-// import {
-//   DSUAddresses,
-//   MarketFactoryAddresses,
-//   MultiInvoker2Addresses,
-//   VaultFactoryAddresses,
-// } from "@/constants/contracts";
-// import { SupportedAsset, addressToAsset2 } from "@/constants/markets";
-// import { SupportedChainId } from "@/constants/network";
-// import { MaxUint256 } from "@/constants/units";
-// import { PerennialVaultType, chainVaultsWithAddress } from "@/constants/vaults";
-// import { notEmpty, sum } from "@/utils/arrayUtils";
-// import { Big6Math } from "@/utils/big6Utils";
-// import { Big18Math } from "@/utils/big18Utils";
-// import { buildCommitPrice, buildUpdateVault } from "@/utils/multiinvoker2";
-// import { buildCommitmentsForOracles } from "@/utils/pythUtils";
+import {
+  DSUAddresses,
+  MarketFactoryAddresses,
+  MultiInvoker2Addresses,
+  VaultFactoryAddresses,
+} from "../constants/contracts";
+import { SupportedAsset, addressToAsset2 } from "../constants/markets";
+import { SupportedChainId, usePyth } from "../constants/network";
+import { MaxUint256 } from "../constants/units";
+import {
+  PerennialVaultType,
+  chainVaultsWithAddress,
+} from "../constants/vaults";
+import { notEmpty, sum } from "../utils/arrayUtils";
+import { Big6Math } from "../utils/big6Utils";
+import { Big18Math } from "../utils/big18Utils";
+import { buildCommitPrice, buildUpdateVault } from "../utils/multiinvoker2";
+import { buildCommitmentsForOracles } from "../utils/pythUtils";
 
-// import { VaultAbi } from "@abi/Vault.abi";
-// import { VaultLens2Abi } from "@abi/VaultLens2.abi";
+import { VaultAbi } from "../abi/Vault.abi";
+import { VaultLens2Abi } from "../abi/VaultLens2.abi";
 
-// import LensArtifact from "../../artifacts/Lens.json";
-// import VaultLensArtifact from "../../../lens/artifacts/contracts/Lens.sol/VaultLens.json";
-// import { bufferGasLimit, getVaultContract } from "@/utils/contractUtils";
-// import { useMultiInvoker2, useUSDC, useVaultFactory } from "../contracts";
-// import { MarketOracles } from "./markets";
+import { LensArtifact } from "../artifacts/Lens";
+import { VaultArtifact } from "../artifacts/VaultLens";
+import { bufferGasLimit, getVaultContract } from "../utils/contractUtils";
+import { MarketOracles, fetchMarketOracles2 } from "./markets";
 
-// export type VaultSnapshots = NonNullable<
-//   Awaited<ReturnType<typeof useVaultSnapshots2>>["data"]
-// >;
-// export type VaultSnapshot2 = ChainVaultSnapshot & {
-//   pre: ChainVaultSnapshot;
-//   assets: SupportedAsset[];
-// };
-// export type VaultAccountSnapshot2 = ChainVaultAccountSnapshot & {
-//   pre: ChainVaultAccountSnapshot;
-// };
+export type VaultSnapshots = NonNullable<
+  Awaited<ReturnType<typeof fetchVaultSnapshots2>>
+>;
+export type VaultSnapshot2 = ChainVaultSnapshot & {
+  pre: ChainVaultSnapshot;
+  assets: SupportedAsset[];
+};
+export type VaultAccountSnapshot2 = ChainVaultAccountSnapshot & {
+  pre: ChainVaultAccountSnapshot;
+};
 
-// export const useVaultSnapshots2 = () => {
-//   const chainId = useChainId();
-//   const vaults = chainVaultsWithAddress(chainId);
-//   const { data: marketOracles } = useMarketOracles2();
-//   const { address: address_ } = useAddress();
-//   const pyth = usePyth();
-//   const providerUrl = useRPCProviderUrl();
-//   const address = address_ ?? zeroAddress;
+export const fetchVaultSnapshots2 = async (
+  publicClient: PublicClient,
+  address_: Address
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const providerUrl: string = publicClient.transport.url;
+  const address = address_ ?? zeroAddress;
 
-//   return useQuery({
-//     enabled: !!vaults && !!vaults.length && !!marketOracles,
-//     queryKey: ["vaultSnapshots2", chainId, address],
-//     queryFn: async () => {
-//       if (!vaults || !vaults.length || !marketOracles) return;
+  const vaults = chainVaultsWithAddress(chainId);
+  const marketOracles = await fetchMarketOracles2(publicClient);
+  const pyth = usePyth(publicClient);
 
-//       const snapshotData = await fetchVaultSnapshotsAfterSettle(
-//         chainId,
-//         address,
-//         marketOracles,
-//         providerUrl,
-//         pyth
-//       );
+  if (!vaults || !vaults.length || !marketOracles) return;
 
-//       const vaultSnapshots = snapshotData.vault.reduce((acc, vaultData) => {
-//         acc[vaultData.vaultType] = {
-//           ...vaultData,
-//           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-//           pre: snapshotData.vaultPre.find(
-//             (pre) => pre.vaultType === vaultData.vaultType
-//           )!,
-//           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-//           assets: vaultData.registrations.map(
-//             (r) => addressToAsset2(r.market)!
-//           ),
-//         };
-//         return acc;
-//       }, {} as Record<PerennialVaultType, VaultSnapshot2>);
+  const snapshotData = await fetchVaultSnapshotsAfterSettle(
+    publicClient,
+    address,
+    marketOracles,
+    providerUrl,
+    pyth
+  );
 
-//       const userSnapshots = snapshotData.user.reduce((acc, vaultData) => {
-//         acc[vaultData.vaultType] = {
-//           ...vaultData,
-//           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-//           pre: snapshotData.userPre.find(
-//             (pre) => pre.vaultType === vaultData.vaultType
-//           )!,
-//         };
-//         return acc;
-//       }, {} as Record<PerennialVaultType, VaultAccountSnapshot2>);
+  const vaultSnapshots = snapshotData.vault.reduce((acc, vaultData) => {
+    acc[vaultData.vaultType as PerennialVaultType] = {
+      ...vaultData,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      pre: snapshotData.vaultPre.find(
+        (pre) => pre.vaultType === vaultData.vaultType
+      )!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      assets: vaultData.registrations.map((r) => addressToAsset2(r.market)!),
+    };
+    return acc;
+  }, {} as Record<PerennialVaultType, VaultSnapshot2>);
 
-//       return {
-//         user: address === zeroAddress ? undefined : userSnapshots,
-//         vault: vaultSnapshots,
-//         commitments: snapshotData.commitments,
-//         settles: snapshotData.settles,
-//         updates: snapshotData.updates,
-//       };
-//     },
-//   });
-// };
+  const userSnapshots = snapshotData.user.reduce((acc, vaultData) => {
+    acc[vaultData.vaultType as PerennialVaultType] = {
+      ...vaultData,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      pre: snapshotData.userPre.find(
+        (pre) => pre.vaultType === vaultData.vaultType
+      )!,
+    };
+    return acc;
+  }, {} as Record<PerennialVaultType, VaultAccountSnapshot2>);
 
-// export type ChainVaultSnapshot = Awaited<
-//   ReturnType<typeof fetchVaultSnapshotsAfterSettle>
-// >["vault"][number];
-// export type ChainVaultAccountSnapshot = Awaited<
-//   ReturnType<typeof fetchVaultSnapshotsAfterSettle>
-// >["user"][number];
-// const fetchVaultSnapshotsAfterSettle = async (
-//   chainId: SupportedChainId,
-//   address: Address,
-//   marketOracles: MarketOracles,
-//   providerUrl: string,
-//   pyth: EvmPriceServiceConnection
-// ) => {
-//   const vaults = chainVaultsWithAddress(chainId);
-//   const vaultLensAddress = getContractAddress({
-//     from: address,
-//     nonce: MaxUint256 - 1n,
-//   });
-//   const lensAddress = getContractAddress({ from: address, nonce: MaxUint256 });
+  return {
+    user: address === zeroAddress ? undefined : userSnapshots,
+    vault: vaultSnapshots,
+    commitments: snapshotData.commitments,
+    settles: snapshotData.settles,
+    updates: snapshotData.updates,
+  };
+};
 
-//   // TODO: there is some duplicate code here with the markets lens logic, we can probably consolidate some of this
-//   const priceCommitments = await buildCommitmentsForOracles({
-//     chainId,
-//     marketOracles: Object.values(marketOracles),
-//     pyth,
-//   });
+export type ChainVaultSnapshot = Awaited<
+  ReturnType<typeof fetchVaultSnapshotsAfterSettle>
+>["vault"][number];
+export type ChainVaultAccountSnapshot = Awaited<
+  ReturnType<typeof fetchVaultSnapshotsAfterSettle>
+>["user"][number];
 
-//   const vaultAddresses = vaults.map(({ vaultAddress }) => vaultAddress);
+const fetchVaultSnapshotsAfterSettle = async (
+  publicClient: PublicClient,
+  address: Address,
+  marketOracles: MarketOracles,
+  providerUrl: string,
+  pyth: EvmPriceServiceConnection
+) => {
+  const chainId = publicClient?.chain?.id as SupportedChainId;
 
-//   const ethCallPayload = {
-//     to: vaultLensAddress,
-//     from: address,
-//     data: encodeFunctionData({
-//       abi: VaultLens2Abi,
-//       functionName: "snapshot",
-//       args: [
-//         priceCommitments,
-//         lensAddress,
-//         vaultAddresses,
-//         address,
-//         MultiInvoker2Addresses[chainId],
-//       ],
-//     }),
-//   };
+  const vaults = chainVaultsWithAddress(chainId);
+  const vaultLensAddress = getContractAddress({
+    from: address,
+    nonce: MaxUint256 - BigInt(1),
+  });
+  const lensAddress = getContractAddress({ from: address, nonce: MaxUint256 });
 
-//   // Override operator approval so the vaultLens can update the address
-//   // Operator storage mapping is at index 0
-//   const vaultFactoryStorage = keccak256(
-//     encodePacked(["bytes32", "bytes32"], [pad(address), pad(toHex(0n))])
-//   );
-//   const vaultFactoryStorageIndex = keccak256(
-//     encodePacked(
-//       ["bytes32", "bytes32"],
-//       [pad(vaultLensAddress), vaultFactoryStorage]
-//     )
-//   );
-//   const alchemyRes = await fetch(providerUrl, {
-//     method: "POST",
-//     headers: { "content-type": "application/json" },
-//     body: JSON.stringify({
-//       id: 1,
-//       jsonrpc: "2.0",
-//       method: "eth_call", // use a manual eth_call here to use state overrides
-//       params: [
-//         ethCallPayload,
-//         "latest",
-//         {
-//           // state diff overrides
-//           [lensAddress]: {
-//             code: LensArtifact.deployedBytecode,
-//             balance: toHex(Big18Math.fromFloatString("1000")),
-//           },
-//           [vaultLensAddress]: {
-//             code: VaultLensArtifact.deployedBytecode,
-//             balance: toHex(Big18Math.fromFloatString("1000")),
-//           },
-//           [VaultFactoryAddresses[chainId]]: {
-//             stateDiff: { [vaultFactoryStorageIndex]: pad(toHex(true)) },
-//           },
-//           [MarketFactoryAddresses[chainId]]: {
-//             stateDiff: vaultAddresses.reduce((acc, vaultAddress) => {
-//               // Override operator approval so the lens can update the vault
-//               const marketFactoryStorage = keccak256(
-//                 encodePacked(
-//                   ["bytes32", "bytes32"],
-//                   [pad(vaultAddress), toHex(1n, { size: 32 })]
-//                 )
-//               );
-//               const marketFactoryStorageIndex = keccak256(
-//                 encodePacked(
-//                   ["bytes32", "bytes32"],
-//                   [pad(lensAddress), marketFactoryStorage]
-//                 )
-//               );
-//               acc[marketFactoryStorageIndex] = pad(toHex(true));
-//               return acc;
-//             }, {} as Record<string, Hex>),
-//           },
-//           // Grant DSU to vault lens to allow for settlement
-//           [DSUAddresses[chainId]]: {
-//             stateDiff: {
-//               [keccak256(
-//                 encodePacked(
-//                   ["bytes32", "bytes32"],
-//                   [pad(vaultLensAddress), pad(toHex(1n))]
-//                 )
-//               )]: pad(toHex(Big18Math.fromFloatString("100000"))),
-//             },
-//           },
-//         },
-//       ],
-//     }),
-//   });
-//   const batchRes = (await alchemyRes.json()) as { result: Hex };
-//   const lensRes = decodeFunctionResult({
-//     abi: VaultLens2Abi,
-//     functionName: "snapshot",
-//     data: batchRes.result,
-//   });
+  // TODO: there is some duplicate code here with the markets lens logic, we can probably consolidate some of this
+  const priceCommitments = await buildCommitmentsForOracles({
+    pyth,
+    publicClient,
+    marketOracles: Object.values(marketOracles),
+  });
 
-//   return {
-//     commitments: lensRes.commitmentStatus,
-//     updates: lensRes.updateStatus,
-//     settles: lensRes.settleStatus,
-//     vault: lensRes.postUpdate.vaultSnapshots
-//       .map((s) => {
-//         const vaultType = vaults.find(
-//           ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
-//         );
-//         if (!vaultType) return;
-//         return {
-//           ...s,
-//           vaultType: vaultType.vault,
-//         };
-//       })
-//       .filter(notEmpty),
-//     vaultPre: lensRes.preUpdate.vaultSnapshots
-//       .map((s) => {
-//         const vaultType = vaults.find(
-//           ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
-//         );
-//         if (!vaultType) return;
-//         return {
-//           ...s,
-//           vaultType: vaultType.vault,
-//         };
-//       })
-//       .filter(notEmpty),
-//     user: lensRes.postUpdate.vaultAccountSnapshots
-//       .map((s) => {
-//         const vaultType = vaults.find(
-//           ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
-//         );
-//         if (!vaultType) return;
-//         return {
-//           ...s,
-//           vaultType: vaultType.vault,
-//         };
-//       })
-//       .filter(notEmpty),
-//     userPre: lensRes.preUpdate.vaultAccountSnapshots
-//       .map((s) => {
-//         const vaultType = vaults.find(
-//           ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
-//         );
-//         if (!vaultType) return;
-//         return {
-//           ...s,
-//           vaultType: vaultType.vault,
-//         };
-//       })
-//       .filter(notEmpty),
-//   };
-// };
+  const vaultAddresses = vaults.map(({ vaultAddress }) => vaultAddress);
 
-// export type VaultPositionHistory = NonNullable<
-//   Awaited<ReturnType<typeof useVaultPositionHistory>>["data"]
-// >[PerennialVaultType];
-// export const useVaultPositionHistory = () => {
-//   const chainId = useChainId();
-//   const { address } = useAddress();
-//   const client = usePublicClient();
+  const ethCallPayload = {
+    to: vaultLensAddress,
+    from: address,
+    data: encodeFunctionData({
+      abi: VaultLens2Abi,
+      functionName: "snapshot",
+      args: [
+        priceCommitments,
+        lensAddress,
+        vaultAddresses,
+        address,
+        MultiInvoker2Addresses[chainId],
+      ],
+    }),
+  };
 
-//   return useQuery({
-//     queryKey: ["vaultPositionHistory", chainId, address],
-//     enabled: !!chainId && !!address,
-//     queryFn: async () => {
-//       if (!address) return;
-//       const vaults = chainVaultsWithAddress(chainId);
-//       const getLogsArgs = { account: address };
+  // Override operator approval so the vaultLens can update the address
+  // Operator storage mapping is at index 0
+  const vaultFactoryStorage = keccak256(
+    encodePacked(["bytes32", "bytes32"], [pad(address), pad(toHex(BigInt(0)))])
+  );
+  const vaultFactoryStorageIndex = keccak256(
+    encodePacked(
+      ["bytes32", "bytes32"],
+      [pad(vaultLensAddress), vaultFactoryStorage]
+    )
+  );
+  const alchemyRes = await fetch(providerUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "eth_call", // use a manual eth_call here to use state overrides
+      params: [
+        ethCallPayload,
+        "latest",
+        {
+          // state diff overrides
+          [lensAddress]: {
+            code: LensArtifact.deployedBytecode,
+            balance: toHex(Big18Math.fromFloatString("1000")),
+          },
+          [vaultLensAddress]: {
+            code: VaultArtifact.deployedBytecode,
+            balance: toHex(Big18Math.fromFloatString("1000")),
+          },
+          [VaultFactoryAddresses[chainId]]: {
+            stateDiff: { [vaultFactoryStorageIndex]: pad(toHex(true)) },
+          },
+          [MarketFactoryAddresses[chainId]]: {
+            stateDiff: vaultAddresses.reduce((acc, vaultAddress) => {
+              // Override operator approval so the lens can update the vault
+              const marketFactoryStorage = keccak256(
+                encodePacked(
+                  ["bytes32", "bytes32"],
+                  [pad(vaultAddress), toHex(BigInt(1), { size: 32 })]
+                )
+              );
+              const marketFactoryStorageIndex = keccak256(
+                encodePacked(
+                  ["bytes32", "bytes32"],
+                  [pad(lensAddress), marketFactoryStorage]
+                )
+              );
+              acc[marketFactoryStorageIndex] = pad(toHex(true));
+              return acc;
+            }, {} as Record<string, Hex>),
+          },
+          // Grant DSU to vault lens to allow for settlement
+          [DSUAddresses[chainId]]: {
+            stateDiff: {
+              [keccak256(
+                encodePacked(
+                  ["bytes32", "bytes32"],
+                  [pad(vaultLensAddress), pad(toHex(BigInt(1)))]
+                )
+              )]: pad(toHex(Big18Math.fromFloatString("100000"))),
+            },
+          },
+        },
+      ],
+    }),
+  });
+  const batchRes = (await alchemyRes.json()) as { result: Hex };
+  const lensRes = decodeFunctionResult({
+    abi: VaultLens2Abi,
+    functionName: "snapshot",
+    data: batchRes.result,
+  });
 
-//       // TODO: migrate this to the graph when available
-//       const vaultPositionHistory = await Promise.all(
-//         vaults.map(async ({ vaultAddress, vault }) => {
-//           const vaultContract = getVaultContract(vaultAddress, chainId);
-//           const logs_ = await client.getLogs({
-//             address: vaultAddress,
-//             args: getLogsArgs,
-//             fromBlock: 0n,
-//             toBlock: "latest",
-//             strict: true,
-//             event: getAbiItem({ abi: VaultAbi, name: "Update" }),
-//           });
-//           const logs = logs_.sort((a, b) =>
-//             Big6Math.cmp(b.args.version, a.args.version)
-//           );
+  return {
+    commitments: lensRes.commitmentStatus,
+    updates: lensRes.updateStatus,
+    settles: lensRes.settleStatus,
+    vault: lensRes.postUpdate.vaultSnapshots
+      .map((s) => {
+        const vaultType = vaults.find(
+          ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
+        );
+        if (!vaultType) return;
+        return {
+          ...s,
+          vaultType: vaultType.vault,
+        };
+      })
+      .filter(notEmpty),
+    vaultPre: lensRes.preUpdate.vaultSnapshots
+      .map((s) => {
+        const vaultType = vaults.find(
+          ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
+        );
+        if (!vaultType) return;
+        return {
+          ...s,
+          vaultType: vaultType.vault,
+        };
+      })
+      .filter(notEmpty),
+    user: lensRes.postUpdate.vaultAccountSnapshots
+      .map((s) => {
+        const vaultType = vaults.find(
+          ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
+        );
+        if (!vaultType) return;
+        return {
+          ...s,
+          vaultType: vaultType.vault,
+        };
+      })
+      .filter(notEmpty),
+    userPre: lensRes.preUpdate.vaultAccountSnapshots
+      .map((s) => {
+        const vaultType = vaults.find(
+          ({ vaultAddress }) => vaultAddress === getAddress(s.vault)
+        );
+        if (!vaultType) return;
+        return {
+          ...s,
+          vaultType: vaultType.vault,
+        };
+      })
+      .filter(notEmpty),
+  };
+};
 
-//           const deposits = logs.filter((l) => l.args.depositAssets > 0n);
-//           const redeems = logs.filter((l) => l.args.redeemShares > 0n);
-//           const claims = logs.filter((l) => l.args.claimAssets > 0n);
+export type VaultPositionHistory = NonNullable<
+  Awaited<ReturnType<typeof fetchVaultPositionHistory>>
+>[PerennialVaultType];
 
-//           let currentPositionStartBlock = (logs.at(-1)?.blockNumber || 0n) - 1n;
-//           for (const claim of claims) {
-//             if (claim.blockNumber === null) continue;
-//             const accountData = await vaultContract.read.accounts([address], {
-//               blockNumber: claim.blockNumber,
-//             });
-//             if (accountData.shares === 0n) {
-//               // If less than 100 wei, consider it a new starting block
-//               currentPositionStartBlock = claim.blockNumber;
-//               break;
-//             }
-//           }
+export const fetchVaultPositionHistory = async (
+  publicClient: PublicClient,
+  address_: Address
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const providerUrl: string = publicClient.transport.url;
+  const address = address_ ?? zeroAddress;
 
-//           const currentPositionDeposits = sum(
-//             deposits
-//               .filter((l) => l.blockNumber > currentPositionStartBlock)
-//               .map((l) => l.args.depositAssets)
-//           );
-//           const currentPositionClaims = sum(
-//             claims
-//               .filter((l) => l.blockNumber > currentPositionStartBlock)
-//               .map((l) => l.args.claimAssets)
-//           );
+  if (!address) return;
+  const vaults = chainVaultsWithAddress(chainId);
+  const getLogsArgs = { account: address };
 
-//           return {
-//             vault,
-//             vaultAddress,
-//             logs,
-//             deposits,
-//             redeems,
-//             claims,
-//             currentPositionDeposits,
-//             currentPositionClaims,
-//           };
-//         })
-//       );
+  // TODO: migrate this to the graph when available
+  const vaultPositionHistory = await Promise.all(
+    vaults.map(async ({ vaultAddress, vault }) => {
+      const vaultContract = getVaultContract(vaultAddress, publicClient);
+      const logs_ = await publicClient.getLogs({
+        address: vaultAddress,
+        args: getLogsArgs,
+        fromBlock: BigInt(0),
+        toBlock: "latest",
+        strict: true,
+        event: getAbiItem({ abi: VaultAbi, name: "Updated" }),
+      });
+      const logs = logs_.sort((a, b) =>
+        Big6Math.cmp(b.args.version, a.args.version)
+      );
 
-//       return vaultPositionHistory.reduce((acc, vaultData) => {
-//         acc[vaultData.vault] = vaultData;
-//         return acc;
-//       }, {} as Record<PerennialVaultType, (typeof vaultPositionHistory)[number]>);
-//     },
-//   });
-// };
+      const deposits = logs.filter((l) => l.args.depositAssets > 0);
+      const redeems = logs.filter((l) => l.args.redeemShares > 0);
+      const claims = logs.filter((l) => l.args.claimAssets > 0);
 
-// const useVaultTransactionCopy = () => {
-//   const intl = useIntl();
-//   return {
-//     approveUSDC: intl.formatMessage({ defaultMessage: "Approve USDC" }),
-//     approveDSU: intl.formatMessage({ defaultMessage: "Approve DSU" }),
-//     approveShares: intl.formatMessage({ defaultMessage: "Approve Shares" }),
-//     depositCollateral: intl.formatMessage({
-//       defaultMessage: "Deposit Collateral",
-//     }),
-//     redeemCollateral: intl.formatMessage({
-//       defaultMessage: "Redeem Collateral",
-//     }),
-//     claimCollateral: intl.formatMessage({ defaultMessage: "Claim Collateral" }),
-//   };
-// };
+      let currentPositionStartBlock =
+        (logs.at(-1)?.blockNumber || BigInt(0)) - BigInt(1);
+      for (const claim of claims) {
+        if (claim.blockNumber === null) continue;
+        const accountData = await vaultContract.read.accounts([address], {
+          blockNumber: claim.blockNumber,
+        });
+        if (accountData.shares === BigInt(0)) {
+          // If less than 100 wei, consider it a new starting block
+          currentPositionStartBlock = claim.blockNumber;
+          break;
+        }
+      }
 
-// const RefreshKeys = ["vaultSnapshots2", "vaultPositionHistory"];
-// export const useRefreshVaultsOnPriceUpdates = () => {
-//   useRefreshKeysOnPriceUpdates2(RefreshKeys);
-// };
+      const currentPositionDeposits = sum(
+        deposits
+          .filter((l) => l.blockNumber > currentPositionStartBlock)
+          .map((l) => l.args.depositAssets)
+      );
+      const currentPositionClaims = sum(
+        claims
+          .filter((l) => l.blockNumber > currentPositionStartBlock)
+          .map((l) => l.args.claimAssets)
+      );
+
+      return {
+        vault,
+        vaultAddress,
+        logs,
+        deposits,
+        redeems,
+        claims,
+        currentPositionDeposits,
+        currentPositionClaims,
+      };
+    })
+  );
+
+  return vaultPositionHistory.reduce((acc, vaultData) => {
+    acc[vaultData.vault as PerennialVaultType] = vaultData;
+    return acc;
+  }, {} as Record<PerennialVaultType, (typeof vaultPositionHistory)[number]>);
+};
+
+// Maybe pull these Hooks out into a reparate package?
+// @perennial/react
 
 // export type VaultTransactions = {
 //   onApproveUSDC: () => Promise<`0x${string}`>;
@@ -397,20 +381,21 @@
 //   ) => Promise<`0x${string}` | undefined>;
 //   onClaim: () => Promise<`0x${string}` | undefined>;
 // };
-// export const useVaultTransactions = (
+
+// export const fetchVaultTransactions = (
 //   vaultAddress: Address
 // ): VaultTransactions => {
 //   const { chain } = useNetwork();
 //   const chainId = useChainId();
 //   const { address } = useAddress();
 //   const { data: walletClient } = useWalletClient({ chainId });
-//   const vaultFactory = useVaultFactory(walletClient ?? undefined);
+//   const vaultFactory = fetchVaultFactory(walletClient ?? undefined);
 //   const pyth = usePyth();
 //   const { data: marketOracles } = useMarketOracles2();
-//   const { data: vaultSnapshots } = useVaultSnapshots2();
+//   const { data: vaultSnapshots } = fetchVaultSnapshots2();
 
 //   const addRecentTransaction = useAddRecentTransaction();
-//   const copy = useVaultTransactionCopy();
+//   const copy = fetchVaultTransactionCopy();
 
 //   const usdcContract = useUSDC(walletClient ?? undefined);
 //   const multiInvoker = useMultiInvoker2(walletClient ?? undefined);
@@ -605,12 +590,12 @@
 // };
 
 // const commitmentsForVaultAction = async ({
-//   chainId,
+//   publicClient,
 //   pyth,
 //   preMarketSnapshots,
 //   marketOracles,
 // }: {
-//   chainId: SupportedChainId;
+//   publicClient: PublicClient;
 //   pyth: EvmPriceServiceConnection;
 //   preMarketSnapshots: VaultSnapshot2["pre"]["marketSnapshots"];
 //   marketOracles: MarketOracles;
@@ -630,7 +615,7 @@
 //     })
 //     .filter(notEmpty);
 //   const commitments = await buildCommitmentsForOracles({
-//     chainId,
+//     publicClient,
 //     pyth,
 //     marketOracles: oracles,
 //   });
@@ -653,8 +638,8 @@
 //   vaultSnapshot: VaultSnapshot2;
 //   assets: bigint;
 // }) => {
-//   const totalAssets = Big6Math.max(vaultSnapshot.totalAssets, 0n);
+//   const totalAssets = Big6Math.max(vaultSnapshot.totalAssets, BigInt(0));
 //   const totalShares = vaultSnapshot.totalShares;
-//   if (totalShares === 0n) return assets;
+//   if (totalShares === BigInt(0)) return assets;
 //   return Big6Math.div(Big6Math.mul(assets, totalShares), totalAssets);
 // };

@@ -78,7 +78,34 @@ export {
   modifyPosition,
 } from "./libs/markets";
 
+export {
+  type VaultSnapshots,
+  type VaultSnapshot2,
+  fetchVaultSnapshots2,
+  type ChainVaultSnapshot,
+  type ChainVaultAccountSnapshot,
+  type VaultPositionHistory,
+  fetchVaultPositionHistory,
+} from "./libs/vaults";
+
 // Utils
+export {
+  type AccumulatorType,
+  AccumulatorTypes,
+} from "./utils/accumulatorUtils";
+
+export {
+  buildApproveTarget,
+  buildCancelOrder,
+  buildCommitPrice,
+  buildExecOrder,
+  buildInterfaceFee,
+  buildLiquidate,
+  buildNoop,
+  buildUpdateMarket,
+  buildUpdateVault,
+} from "./utils/multiinvoker2";
+
 export {
   size,
   magnitude,
