@@ -1,25 +1,35 @@
-const viem = require("viem");
-const sdk = require("../dist/index.js");
-const { markets, network, positionUtils } = sdk;
+import { http, createPublicClient, Address, PublicClient } from "viem";
+import {
+  chains,
+  fetchMarketSnapshots2,
+  calcSkew,
+  calcMakerExposure,
+  SupportedChainId,
+  SupportedAsset,
+  UserMarketSnapshot,
+  MarketSnapshot,
+} from "perennial-sdk-ts";
+
+import { calcLpUtilization } from "../dist";
 
 // Alchemy Key
 const AlchemyURL = process.env.ALCHEMY_URL;
 if (!AlchemyURL) throw new Error("Missing alchemy key configuration");
 
 /// Fetch Maker Data
-async function main(chainID, userAddress) {
-  const chain = network.Chains[chainID];
+async function main(chainID: SupportedChainId, userAddress: Address) {
+  const chain = chains[chainID];
 
   // Create Public Client
-  const publicClient = viem.createPublicClient({
+  const publicClient = createPublicClient({
     chain,
-    transport: viem.http(AlchemyURL, {
+    transport: http(AlchemyURL, {
       batch: true,
     }),
   });
 
-  const marketInfo = await markets.fetchMarketSnapshots2(
-    publicClient,
+  const marketInfo = await fetchMarketSnapshots2(
+    publicClient as PublicClient,
     userAddress
   );
   if (!marketInfo) throw new Error("No market info found");
@@ -27,51 +37,52 @@ async function main(chainID, userAddress) {
   // Filter out user positions with no exposure
   const marketsWithUserPositions =
     marketInfo.user &&
-    Object.entries(marketInfo.user)
+    (Object.entries(marketInfo.user)
       .filter(([market, position]) => position.side !== "none")
       .reduce(
         (acc, [market, position]) => ({ ...acc, [market]: position }),
         {}
-      );
+      ) as Record<SupportedAsset, UserMarketSnapshot>);
   if (!marketsWithUserPositions) throw new Error("No user positions found");
 
   // Filter out market snapshots without users positions
   const relevantGlobalMarkets =
     marketInfo.market &&
-    Object.entries(marketInfo.market)
+    (Object.entries(marketInfo.market)
       .filter(([market, position]) =>
         Object.keys(marketsWithUserPositions).includes(market)
       )
       .reduce(
         (acc, [market, position]) => ({ ...acc, [market]: position }),
         {}
-      );
+      ) as Record<SupportedAsset, MarketSnapshot>);
 
   if (!relevantGlobalMarkets)
     throw new Error("No relevant global markets found");
-  console.log(relevantGlobalMarkets);
-  // User's markets
-  console.log("Raw User Position");
-  console.log(marketsWithUserPositions);
 
   /// Format data for Maker
   const data = Object.entries(marketsWithUserPositions).map(
-    ([ticker, data]) => {
-      const { local, nextPosition, prices, side, nextLeverage, market } = data;
+    ([ticker, userData]) => {
+      const asset = ticker as SupportedAsset;
+      const {
+        local,
+        nextPosition,
+        prices: latestPrices,
+        side,
+        nextLeverage,
+        market,
+      } = userData;
 
       // Calculate Liqudiation
-      const marketSkew = positionUtils.calcSkew(relevantGlobalMarkets[ticker]);
-
+      const marketSkew = calcSkew(relevantGlobalMarkets[asset]);
       // Calculate LP Utilization
-      const lpUtilization = positionUtils.calcLpUtilization(
-        relevantGlobalMarkets[ticker]
-      );
+      const lpUtilization = calcLpUtilization(relevantGlobalMarkets[asset]);
       // Calculate Exposure (units of underlying asset)
-      const lpExposure = positionUtils.calcMakerExposure(
+      const lpExposure = calcMakerExposure(
         nextPosition.maker,
-        relevantGlobalMarkets[ticker].nextPosition.maker,
-        relevantGlobalMarkets[ticker].nextPosition.long,
-        relevantGlobalMarkets[ticker].nextPosition.short
+        relevantGlobalMarkets[asset].nextPosition.maker,
+        relevantGlobalMarkets[asset].nextPosition.long,
+        relevantGlobalMarkets[asset].nextPosition.short
       );
 
       // Calculate Liqudiation
@@ -82,11 +93,17 @@ async function main(chainID, userAddress) {
       //   nextPosition.maker
       // );
 
+      // Get current market price & latest update price
+      const prices = {
+        currentPrice: relevantGlobalMarkets[asset].latestOracleVersion.price,
+        latestPrice: latestPrices[0],
+      };
+
       return {
-        ticker,
+        asset,
         market,
         side,
-        price: prices[0],
+        prices,
         collateral: local.collateral,
         position: {
           maker: nextPosition.maker,
@@ -102,7 +119,7 @@ async function main(chainID, userAddress) {
     }
   );
   console.log("Formatted Data");
-  console.log({ user: userAddress, chain: chainID, data });
+  console.log(data);
   return { user: userAddress, chain: chainID, data };
 }
 
