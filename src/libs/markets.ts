@@ -59,12 +59,8 @@ import {
 import { buildCommitmentsForOracles, getRecentVaa } from "../utils/pythUtils";
 
 import { Lens2Abi } from "../abi/Lens2.abi";
-import { PythOracleAbi } from "../abi/PythOracle.abi";
-
 import { MultiInvoker2Action, ProductSnapshot } from "../types/perennial";
-
-import LensArtifact from "../artifacts/Lens.json";
-
+import { LensArtifact } from "../artifacts/Lens";
 import { MarketFactoryAbi } from "../abi/MarketFactory.abi";
 import { ERC20 } from "../abi/ERC20.abi";
 import { MultiInvoker2Abi } from "../abi/MultiInvoker2.abi";
