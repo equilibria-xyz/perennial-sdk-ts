@@ -11,8 +11,6 @@ import { Big6Math } from "../utils/big6Utils";
 import { OracleFactoryAddresses } from "./contracts";
 import { EvmPriceServiceConnection } from "@pythnetwork/pyth-evm-js";
 
-export const chains = [arbitrum, mainnet, arbitrumGoerli, goerli, baseGoerli];
-
 export const SupportedChainIds = [
   arbitrum.id,
   mainnet.id,
@@ -23,7 +21,7 @@ export const SupportedChainIds = [
 
 export type SupportedChainId = (typeof SupportedChainIds)[number];
 
-export const Chains: { [chainId in SupportedChainId]: Chain } = {
+export const chains: { [chainId in SupportedChainId]: Chain } = {
   [mainnet.id]: mainnet,
   [goerli.id]: goerli,
   [arbitrum.id]: arbitrum,
