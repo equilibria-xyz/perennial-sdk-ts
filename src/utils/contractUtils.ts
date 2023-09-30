@@ -30,15 +30,11 @@ export function getVaultAddressForType(
 //   return getContract({ abi: BalancedVaultAbi, address, walletClient: signer, chainId })
 // }
 
-export function getVaultContract(
-  vaultAddress: Address,
-  chainId: SupportedChainId,
-  signer?: WalletClient
-) {
+export function getVaultContract(vaultAddress: Address, client: PublicClient) {
   return getContract({
     abi: VaultAbi,
     address: vaultAddress,
-    walletClient: signer,
+    publicClient: client,
   });
 }
 
