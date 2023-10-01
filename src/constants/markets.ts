@@ -118,7 +118,12 @@ export const ChainMarkets2: {
     sol: getAddress("0x4443Ec03A347394D2CA331638B809A17617497af"),
     matic: getAddress("0x40a4b331E95D409cC9CEdDcA9eFDf5ff58da4344"),
   },
-  [arbitrum.id]: {},
+  [arbitrum.id]: {
+    eth: getAddress("0x90A664846960AaFA2c164605Aebb8e9Ac338f9a0"),
+    btc: getAddress("0xcC83e3cDA48547e3c250a88C8D5E97089Fd28F60"),
+    sol: getAddress("0x02258bE4ac91982dc1AF7a3D2C4F05bE6079C253"),
+    matic: getAddress("0x7e34B5cBc6427Bd53ECFAeFc9AC2Cad04e982f78"),
+  },
   [baseGoerli.id]: {},
   [mainnet.id]: {},
   [goerli.id]: {},

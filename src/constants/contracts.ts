@@ -46,7 +46,7 @@ export const MultiInvokerAddresses: AddressMapping = {
 export const MultiInvoker2Addresses: AddressMapping = {
   [goerli.id]: zeroAddress,
   [mainnet.id]: zeroAddress,
-  [arbitrum.id]: zeroAddress,
+  [arbitrum.id]: getAddress("0x431603567EcBb4aa1Ce5a4fdBe5554cAEa658832"),
   [arbitrumGoerli.id]: getAddress("0x9F6f72Cf419121090C761D0488f61D2534Da4196"),
   [baseGoerli.id]: zeroAddress,
 };
@@ -54,7 +54,7 @@ export const MultiInvoker2Addresses: AddressMapping = {
 export const MarketFactoryAddresses: AddressMapping = {
   [goerli.id]: zeroAddress,
   [mainnet.id]: zeroAddress,
-  [arbitrum.id]: zeroAddress,
+  [arbitrum.id]: getAddress("0xDaD8A103473dfd47F90168A0E46766ed48e26EC7"),
   [arbitrumGoerli.id]: getAddress("0x8D8903B294B358BA1B5d91FB838e5dC35370c7D2"),
   [baseGoerli.id]: zeroAddress,
 };
@@ -62,7 +62,7 @@ export const MarketFactoryAddresses: AddressMapping = {
 export const VaultFactoryAddresses: AddressMapping = {
   [goerli.id]: zeroAddress,
   [mainnet.id]: zeroAddress,
-  [arbitrum.id]: zeroAddress,
+  [arbitrum.id]: getAddress("0xad3565680aEcEe27A39249D8c2D55dAc79BE5Ad0"),
   [arbitrumGoerli.id]: getAddress("0x97B34BA2FD1ff8Ce18b3bC7b05D1fcb87E95D6fc"),
   [baseGoerli.id]: zeroAddress,
 };
@@ -70,7 +70,7 @@ export const VaultFactoryAddresses: AddressMapping = {
 export const OracleFactoryAddresses: AddressMapping = {
   [goerli.id]: zeroAddress,
   [mainnet.id]: zeroAddress,
-  [arbitrum.id]: zeroAddress,
+  [arbitrum.id]: getAddress("0x8CDa59615C993f925915D3eb4394BAdB3feEF413"),
   [arbitrumGoerli.id]: getAddress("0xaf09499A04a9A7c6E1fD5320ebd86E1A817d6D80"),
   [baseGoerli.id]: zeroAddress,
 };
@@ -89,18 +89,4 @@ export const USDCAddresses: AddressMapping = {
   [arbitrum.id]: getAddress("0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"),
   [arbitrumGoerli.id]: getAddress("0x6775842AE82BF2F0f987b10526768Ad89d79536E"),
   [baseGoerli.id]: getAddress("0x7b4adf64b0d60ff97d672e473420203d52562a84"),
-};
-
-// Chainalysis contract address only exists on Eth Mainnet
-export const ChainalysisContractAddress =
-  "0x40c57923924b5c5c5455c48d93317139addac8fb";
-
-export const BalancedVaultAlphaAddresses: Partial<AddressMapping> = {
-  [arbitrum.id]: getAddress("0x5A572B5fBBC43387B5eF8de2C4728A4108ef24a6"),
-  [arbitrumGoerli.id]: getAddress("0xbca5dFb4Ff2a70dDe4A275661b462021B8eB1ebA"),
-  [baseGoerli.id]: getAddress("0x26F70E5fA46aD10DF9d43ba469cfAbC79B073a01"),
-};
-
-export const BalancedVaultBravoAddresses: Partial<AddressMapping> = {
-  [arbitrum.id]: getAddress("0x1960628db367281B1a186dD5B80B5dd6978F016F"),
 };

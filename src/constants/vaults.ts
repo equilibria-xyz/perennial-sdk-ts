@@ -22,7 +22,10 @@ export const ChainVaults2: {
   [arbitrumGoerli.id]: {
     alpha: getAddress("0xbca5dFb4Ff2a70dDe4A275661b462021B8eB1ebA"),
   },
-  [arbitrum.id]: {},
+  [arbitrum.id]: {
+    alpha: getAddress("0xF8b6010FD6ba8F3E52c943A1473B1b1459a73094"),
+    bravo: getAddress("0x699e37DfCEe5c6E4c5D0bC1C2FFbC2afEC55f6FB"),
+  },
   [baseGoerli.id]: {},
   [mainnet.id]: {},
   [goerli.id]: {},
