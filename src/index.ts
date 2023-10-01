@@ -1,5 +1,5 @@
 // ABIs
-export { ERC20 } from "./abi/ERC20.abi";
+export { ERC20Abi } from "./abi/ERC20.abi";
 export { IProductAbi } from "./abi/IProduct.abi";
 export { Lens2Abi } from "./abi/Lens2.abi";
 export { MarketAbi } from "./abi/Market.abi";
@@ -26,7 +26,6 @@ export {
   OracleFactoryAddresses,
   DSUAddresses,
   USDCAddresses,
-  ChainalysisContractAddress,
 } from "./constants/contracts";
 
 /// Markets
