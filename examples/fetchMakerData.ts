@@ -4,13 +4,12 @@ import {
   fetchMarketSnapshots2,
   calcSkew,
   calcMakerExposure,
+  calcLpUtilization,
   SupportedChainId,
   SupportedAsset,
   UserMarketSnapshot,
   MarketSnapshot,
 } from "perennial-sdk-ts";
-
-import { calcLpUtilization } from "../dist";
 
 // Alchemy Key
 const AlchemyURL = process.env.ALCHEMY_URL;

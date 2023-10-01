@@ -1,9 +1,5 @@
 import { getContract, Address, WalletClient, Client, PublicClient } from "viem";
 
-import {
-  BalancedVaultAlphaAddresses,
-  BalancedVaultBravoAddresses,
-} from "../constants/contracts";
 import { SupportedChainId } from "../constants/network";
 import { PerennialVaultType } from "../constants/vaults";
 
@@ -11,18 +7,6 @@ import { MarketAbi } from "../abi/Market.abi";
 import { OracleAbi } from "../abi/Oracle.abi";
 import { PythOracleAbi } from "../abi/PythOracle.abi";
 import { VaultAbi } from "../abi/Vault.abi";
-
-export function getVaultAddressForType(
-  vaultType: PerennialVaultType,
-  chainId: SupportedChainId
-) {
-  switch (vaultType) {
-    case "alpha":
-      return BalancedVaultAlphaAddresses[chainId];
-    case "bravo":
-      return BalancedVaultBravoAddresses[chainId];
-  }
-}
 
 // export function getVaultForType(vaultType: PerennialVaultType, chainId: SupportedChainId, signer?: WalletClient) {
 //   const address = getVaultAddressForType(vaultType, chainId)

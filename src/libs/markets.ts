@@ -62,7 +62,7 @@ import { Lens2Abi } from "../abi/Lens2.abi";
 import { MultiInvoker2Action, ProductSnapshot } from "../types/perennial";
 import { LensArtifact } from "../artifacts/Lens";
 import { MarketFactoryAbi } from "../abi/MarketFactory.abi";
-import { ERC20 } from "../abi/ERC20.abi";
+import { ERC20Abi } from "../abi/ERC20.abi";
 import { MultiInvoker2Abi } from "../abi/MultiInvoker2.abi";
 
 export type ProductSnapshotWithTradeLimitations = ProductSnapshot & {
@@ -431,7 +431,7 @@ export const approveUSDC = async (
   // Contract Factory
   const usdcContract = getContract({
     address: USDCAddresses[chainId],
-    abi: ERC20,
+    abi: ERC20Abi,
     walletClient,
   });
 

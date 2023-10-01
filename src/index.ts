@@ -144,7 +144,6 @@ export {
 } from "./utils/fundingAndInterestUtils";
 
 export {
-  getVaultAddressForType,
   getVaultContract,
   getMarketContract,
   getOracleContract,
