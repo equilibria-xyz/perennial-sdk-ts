@@ -1,4 +1,4 @@
-export const ERC20 = [
+export const ERC20Abi = [
   {
     constant: true,
     inputs: [],
