@@ -2,11 +2,17 @@
   "name": "perennial-sdk-ts",
   "version": "0.1.0",
   "description": "A typescript library for interacting with Perennial V2 markets",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/_cjs/index.js",
+  "module": "./dist/_esm/index.js",
+  "types": "./dist/_types/index.d.ts",
+  "typings": "./dist/_types/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "clean": "rimraf dist/_esm dist/_cjs dist/_types",
+    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types",
+    "build:cjs": "tsc --module commonjs --outDir ./dist/_cjs --removeComments --verbatimModuleSyntax false && printf '{\"type\":\"commonjs\"}' > ./dist/_cjs/package.json",
+    "build:esm": "tsc --module es2015 --outDir ./dist/_esm && printf '{\"type\": \"module\",\"sideEffects\":false}' > ./dist/_esm/package.json",
+    "build:types": "tsc --module esnext --declarationDir ./dist/_types --emitDeclarationOnly --declaration --declarationMap",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -18,6 +24,7 @@
   "author": "l3wi",
   "license": "MIT",
   "devDependencies": {
+    "rimraf": "^5.0.5",
     "typescript": "^5.2.2"
   },
   "dependencies": {

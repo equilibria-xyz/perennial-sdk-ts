@@ -5,7 +5,13 @@ import {
   goerli,
   mainnet,
 } from "viem/chains";
-import { Address, Chain, PublicClient, createPublicClient, http } from "viem";
+import {
+  type Address,
+  type Chain,
+  type PublicClient,
+  createPublicClient,
+  http,
+} from "viem";
 
 import { Big6Math } from "../utils/big6Utils";
 import { OracleFactoryAddresses } from "./contracts";

@@ -1,15 +1,33 @@
 {
   "compilerOptions": {
-    "target": "es2016",                                  /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
-    "module": "CommonJS",                                /* Specify what module code is generated. */
-    "rootDir": "./src",                                  /* Specify the root folder within your source files. */
-    "declaration": true,                              /* Generate .d.ts files from TypeScript and JavaScript files in your project. */
-    "declarationMap": true,                           /* Create sourcemaps for d.ts files. */
-    "sourceMap": true,                                /* Create source map files for emitted JavaScript files. */
-    "outDir": "./dist",                                   /* Specify an output folder for all emitted files. */
-    "esModuleInterop": true,                             /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */
-    "strict": true,                                      /* Enable all strict type-checking options. */
-    "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
+ // Type checking
+ "strict": true,
+
+  // JavaScript support
+  "allowJs": false,
+  "checkJs": false,
+
+  // Interop constraints
+  "esModuleInterop": false,
+  "allowSyntheticDefaultImports": false,
+  "forceConsistentCasingInFileNames": true,
+  // "verbatimModuleSyntax": true,
+  "importHelpers": true, // This is 
+
+    // Language and environment
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "rootDir": "./src",
+    "target": "ES2021",                              /* Specify what module code is generated. */
+    "lib": [
+      "ES2022", // By using ES2022 we get access to the `.cause` property on `Error` instances.
+      "DOM" // We are adding `DOM` here to get the `fetch`, etc. types. This should be removed once these types are available via DefinitelyTyped.
+    ],
+                         
+    "outDir": "./dist",     
+    
+    // Skip type checking for node modules                    
+    "skipLibCheck": true                           
   },
   "exclude": ["examples", "dist"]
 }
