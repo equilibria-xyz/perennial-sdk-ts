@@ -1,4 +1,11 @@
-import { http, createPublicClient, Address, PublicClient } from "viem";
+import {
+  http,
+  createPublicClient,
+  Address,
+  PublicClient,
+  zeroAddress,
+} from "viem";
+
 import {
   chains,
   fetchMarketSnapshots2,
@@ -16,8 +23,15 @@ const AlchemyURL = process.env.ALCHEMY_URL;
 if (!AlchemyURL) throw new Error("Missing alchemy key configuration");
 
 /// Fetch Maker Data
-async function main(chainID: SupportedChainId, userAddress: Address) {
-  const chain = chains[chainID];
+async function main(url: string, userAddress: Address | undefined) {
+  // Get Chain
+  const chainID = await createPublicClient({
+    transport: http(AlchemyURL, {
+      batch: true,
+    }),
+  }).getChainId();
+
+  const chain = chains[chainID as SupportedChainId];
 
   // Create Public Client
   const publicClient = createPublicClient({
@@ -122,4 +136,4 @@ async function main(chainID: SupportedChainId, userAddress: Address) {
   return { user: userAddress, chain: chainID, data };
 }
 
-main(421613, "0x07c867770c43b1c6b715aa8ac3a55dfd7f835a82");
+main(AlchemyURL, zeroAddress);
