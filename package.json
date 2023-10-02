@@ -24,6 +24,7 @@
   "author": "l3wi",
   "license": "MIT",
   "devDependencies": {
+    "esno": "^0.17.0",
     "rimraf": "^5.0.5",
     "typescript": "^5.2.2"
   },
