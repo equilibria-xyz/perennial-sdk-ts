@@ -1,24 +1,23 @@
 {
   "compilerOptions": {
- // Type checking
- "strict": true,
+    // Type checking
+    "strict": true,
 
-  // JavaScript support
-  "allowJs": false,
-  "checkJs": false,
+    // JavaScript support
+    "allowJs": false,
+    "checkJs": false,
 
-  // Interop constraints
-  "esModuleInterop": false,
-  "allowSyntheticDefaultImports": false,
-  "forceConsistentCasingInFileNames": true,
-  // "verbatimModuleSyntax": true,
-  "importHelpers": true, // This is 
+    // Interop constraints
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "importHelpers": true,
 
     // Language and environment
     "moduleResolution": "node",
     "sourceMap": true,
     "rootDir": "./src",
-    "target": "ES2021",                              /* Specify what module code is generated. */
+    "target": "ES2021",
     "lib": [
       "ES2022", // By using ES2022 we get access to the `.cause` property on `Error` instances.
       "DOM" // We are adding `DOM` here to get the `fetch`, etc. types. This should be removed once these types are available via DefinitelyTyped.
