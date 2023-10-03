@@ -8,8 +8,8 @@
   "typings": "./dist/_types/index.d.ts",
   "type": "module",
   "scripts": {
-    "publish": "npm run build && npm bump && npm publish",
-    "bump": "npm version patch --force",
+    "publish": "npm run build && npm run pub",
+    "pub": "npm version patch --force && npm publish",
     "clean": "rimraf dist/_esm dist/_cjs dist/_types",
     "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types",
     "build:cjs": "tsc --module commonjs --outDir ./dist/_cjs --removeComments --verbatimModuleSyntax false && printf '{\"type\":\"commonjs\"}' > ./dist/_cjs/package.json",
