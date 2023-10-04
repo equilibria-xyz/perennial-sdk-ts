@@ -1,6 +1,6 @@
 {
   "name": "perennial-sdk-ts",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "A typescript library for interacting with Perennial V2 markets",
   "main": "./dist/_cjs/index.js",
   "module": "./dist/_esm/index.js",
