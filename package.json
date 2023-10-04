@@ -1,6 +1,6 @@
 {
   "name": "perennial-sdk-ts",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A typescript library for interacting with Perennial V2 markets",
   "main": "./dist/_cjs/index.js",
   "module": "./dist/_esm/index.js",
@@ -8,8 +8,7 @@
   "typings": "./dist/_types/index.d.ts",
   "type": "module",
   "scripts": {
-    "publish": "npm run build && npm run pub",
-    "pub": "npm version patch --force && npm publish",
+    "bump": "npm version patch --force",
     "clean": "rimraf dist/_esm dist/_cjs dist/_types",
     "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types",
     "build:cjs": "tsc --module commonjs --outDir ./dist/_cjs --removeComments --verbatimModuleSyntax false && printf '{\"type\":\"commonjs\"}' > ./dist/_cjs/package.json",
