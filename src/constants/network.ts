@@ -80,9 +80,13 @@ export const PythTestnetUrl = "https://xc-testnet.pyth.network";
 
 const pythClients = {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  mainnet: new EvmPriceServiceConnection(PythMainnetUrl!),
+  mainnet: new EvmPriceServiceConnection(PythMainnetUrl!, {
+    priceFeedRequestConfig: { binary: true },
+  }),
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  testnet: new EvmPriceServiceConnection(PythTestnetUrl!),
+  testnet: new EvmPriceServiceConnection(PythTestnetUrl!, {
+    priceFeedRequestConfig: { binary: true },
+  }),
 };
 
 export const usePyth = (publicClient: PublicClient) =>

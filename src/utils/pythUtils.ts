@@ -13,6 +13,9 @@ export const getRecentVaa = async ({
   feedId: string;
   minValidTime: bigint;
 }) => {
+  const priceFeeds = await pyth.getLatestPriceFeeds([feedId]);
+  if (!priceFeeds) throw new Error("No price feeds found");
+
   const vaaQueryTime = Math.floor(Date.now() / 1000) - Number(minValidTime);
   const [vaa, publishTime] = await pyth.getVaa(feedId, vaaQueryTime);
 
