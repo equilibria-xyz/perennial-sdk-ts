@@ -499,9 +499,8 @@ export const calcSkew = (marketSnapshot?: MarketSnapshot) => {
     nextPosition: { long, short },
     riskParameter: { virtualTaker },
   } = marketSnapshot;
-  console.log(long, short, virtualTaker);
-  const nextMajor = long > short ? long : short;
 
+  const nextMajor = long > short ? long : short;
   if (
     Big6Math.isZero(long) &&
     Big6Math.isZero(short) &&

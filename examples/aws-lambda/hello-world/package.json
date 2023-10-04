@@ -8,7 +8,7 @@
   "license": "MIT",
   "dependencies": {
     "axios": ">=0.21.1",
-    "perennial-sdk-ts": "^0.1.4",
+    "perennial-sdk-ts": "^0.1.5",
     "viem": "^1.14.0"
   },
   "scripts": {
