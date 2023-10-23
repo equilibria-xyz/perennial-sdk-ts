@@ -59,11 +59,11 @@ import {
 import { buildCommitmentsForOracles, getRecentVaa } from "../utils/pythUtils";
 
 import { Lens2Abi } from "../abi/Lens2.abi";
-import { MultiInvoker2Action, ProductSnapshot } from "../types/perennial";
 import { LensArtifact } from "../artifacts/Lens";
 import { MarketFactoryAbi } from "../abi/MarketFactory.abi";
 import { ERC20Abi } from "../abi/ERC20.abi";
 import { MultiInvoker2Abi } from "../abi/MultiInvoker2.abi";
+import { ProductSnapshot, MultiInvoker2Action } from "../types/perennial";
 
 export type ProductSnapshotWithTradeLimitations = ProductSnapshot & {
   canOpenMaker: boolean;
