@@ -4,7 +4,6 @@ import { IProductAbi } from "../abi/IProduct.abi";
 import { Lens2Abi } from "../abi/Lens2.abi";
 import { MarketAbi } from "../abi/Market.abi";
 import { MultiInvoker2Abi } from "../abi/MultiInvoker2.abi";
-
 import { ContractReturnType } from "./helpers";
 
 export type Position = ContractReturnType<typeof IProductAbi, "position">;
