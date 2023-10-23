@@ -1,28 +1,66 @@
-export type AccumulatorType = 'value' | 'pnl' | 'funding' | 'interest' | 'positionFees' | 'keeperFees'
+import { sum } from "./arrayUtils";
+
+export type AccumulatorType = (typeof AccumulatorTypes)[number]["type"];
 export const AccumulatorTypes = [
   {
-    type: 'value',
-    realizedKey: 'accumulatedValue',
-    unrealizedKey: { maker: 'makerValue', long: 'longValue', short: 'shortValue' } as const,
+    type: "value",
+    realizedKey: "accumulatedValue",
+    unrealizedKey: {
+      maker: "makerValue",
+      long: "longValue",
+      short: "shortValue",
+    } as const,
   },
   {
-    type: 'pnl',
+    type: "pnl",
     realizedKey: `accumulatedPnl`,
-    unrealizedKey: { maker: `pnlMaker`, long: `pnlLong`, short: `pnlShort` } as const,
+    unrealizedKey: {
+      maker: `pnlMaker`,
+      long: `pnlLong`,
+      short: `pnlShort`,
+    } as const,
   },
   {
-    type: 'funding',
+    type: "funding",
     realizedKey: `accumulatedFunding`,
-    unrealizedKey: { maker: `fundingMaker`, long: `fundingLong`, short: `fundingShort` } as const,
+    unrealizedKey: {
+      maker: `fundingMaker`,
+      long: `fundingLong`,
+      short: `fundingShort`,
+    } as const,
   },
   {
-    type: 'interest',
+    type: "interest",
     realizedKey: `accumulatedInterest`,
-    unrealizedKey: { maker: `interestMaker`, long: `interestLong`, short: `interestShort` } as const,
+    unrealizedKey: {
+      maker: `interestMaker`,
+      long: `interestLong`,
+      short: `interestShort`,
+    } as const,
   },
   {
-    type: 'makerPositionFee',
+    type: "makerPositionFee",
     realizedKey: `accumulatedMakerPositionFee`,
-    unrealizedKey: { maker: `positionFeeMaker`, long: `positionFeeMaker`, short: `positionFeeMaker` } as const,
+    unrealizedKey: {
+      maker: `positionFeeMaker`,
+      long: `positionFeeMaker`,
+      short: `positionFeeMaker`,
+    } as const,
   },
-] as const
+] as const;
+
+export type RealizedAccumulations = Record<
+  (typeof AccumulatorTypes)[number]["type"],
+  bigint
+>;
+export function accumulateRealized(
+  payload: Record<
+    (typeof AccumulatorTypes)[number]["realizedKey"],
+    bigint | string
+  >[]
+) {
+  return AccumulatorTypes.reduce((acc, { realizedKey, type }) => {
+    const total = sum(payload.map((p) => BigInt(p[realizedKey])));
+    return { ...acc, [type]: total };
+  }, {} as RealizedAccumulations);
+}
