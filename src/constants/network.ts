@@ -16,6 +16,7 @@ import {
 import { Big6Math } from "../utils/big6Utils";
 import { OracleFactoryAddresses } from "./contracts";
 import { EvmPriceServiceConnection } from "@pythnetwork/pyth-evm-js";
+import { GraphQLClient } from "graphql-request";
 
 export const SupportedChainIds = [
   arbitrum.id,
@@ -46,13 +47,18 @@ export const isTestnet = (chainId?: number) =>
 
 export const DefaultChain = arbitrumGoerli; // chains[0] // TODO revert for mainnet
 
-export const GraphUrls2: { [chainId in SupportedChainId]: string } = {
-  [arbitrum.id]: process.env.NEXT_PUBLIC_GRAPH_URL_ARBITRUM_2 ?? "",
-  [mainnet.id]: process.env.NEXT_PUBLIC_GRAPH_URL_MAINNET_2 ?? "",
-  [arbitrumGoerli.id]:
-    process.env.NEXT_PUBLIC_GRAPH_URL_ARBITRUM_GOERLI_2 ?? "",
-  [goerli.id]: process.env.NEXT_PUBLIC_GRAPH_URL_GOERLI_2 ?? "",
-  [baseGoerli.id]: process.env.NEXT_PUBLIC_GRAPH_URL_BASE_GOERLI_2 ?? "",
+const graphClients2 = new Map<SupportedChainId, GraphQLClient>();
+
+export const createGraphClient = (chainId: SupportedChainId, url: string) => {
+  if (!graphClients2.has(chainId))
+    graphClients2.set(chainId, new GraphQLClient(url));
+};
+
+export const useGraphClient2 = (chainId: SupportedChainId) => {
+  if (!graphClients2.has(chainId))
+    throw new Error(`No graph client for chain ${chainId}`);
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return graphClients2.get(chainId)!;
 };
 
 export const ExplorerURLs: { [chainId in SupportedChainId]: string } = {
