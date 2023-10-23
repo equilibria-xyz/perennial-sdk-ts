@@ -48,7 +48,8 @@ export {
   type SupportedChainId,
   isSupportedChain,
   isTestnet,
-  GraphUrls2,
+  useGraphClient2,
+  createGraphClient,
   ExplorerURLs,
   PythTestnetUrl,
   PythMainnetUrl,
@@ -76,6 +77,8 @@ export {
   approveOperator,
   modifyPosition,
 } from "./libs/markets";
+
+export { useActivePositionMarketPnls } from "./libs/graph/market";
 
 export {
   type VaultSnapshots,
