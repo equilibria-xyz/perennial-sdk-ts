@@ -48,9 +48,10 @@ async function main(
 
   // Setup Graph Client
   createGraphClient(chainID as SupportedChainId, graphURL);
+  // Fetch User History via Graph
   const data = await useActivePositionMarketPnls(publicClient, userAddress);
   console.log(data);
-  return;
+  return data;
 }
 
 main(UserAddress, GraphURL);
