@@ -1,5 +1,5 @@
 import { GraphQLClient, gql } from "graphql-request";
-import { Address, PublicClient, getAddress } from "viem";
+import { Account, Address, PublicClient, getAddress } from "viem";
 
 import {
   ChainMarkets2,
@@ -35,11 +35,18 @@ import { SupportedChainId, useGraphClient2 } from "../../constants/network";
 // import { useAddress, useChainId, useGraphClient2 } from "../../network";
 import { fetchMarketSnapshots2 } from "../markets";
 import {
+  MarketAccountCheckpoint,
   type AccountCheckpointsQuery,
   type MarketAccountCheckpointDeltasQuery,
   type MarketAccumulatorsQuery,
-  type PositionSide,
+  PositionSide,
+  Updated,
+  AccountPositionProcessed,
+  MultiInvokerOrderPlaced,
+  BucketedVolume,
+  MarketAccumulator,
 } from "../../types/gql/graphql";
+import { add } from "date-fns";
 
 export const useActivePositionMarketPnls = async (
   publicClient: PublicClient,
@@ -363,173 +370,189 @@ export const useActivePositionMarketPnls = async (
   return totalPnl;
 };
 
-// export type ActiveSubPositionHistory = NonNullable<
-//   NonNullable<
-//     Awaited<ReturnType<typeof useActiveSubPositionHistory>["data"]>
-//   >["pages"][number]
-// >["changes"];
+export type ActiveSubPositionHistory = NonNullable<
+  NonNullable<Awaited<ReturnType<typeof useActiveSubPositionHistory>>>
+>["changes"];
 
-// const ActivePositionHistoryPageSize = 100;
-// export const useActiveSubPositionHistory = (asset: SupportedAsset) => {
-//   const chainId = useChainId();
-//   const { data: marketSnapshots, isLoading: marketSnapshotsLoading } =
-//     useMarketSnapshots2();
-//   const { address } = useAddress();
-//   const graphClient = useGraphClient2();
+const ActivePositionHistoryPageSize = 100;
+export const useActiveSubPositionHistory = async (
+  publicClient: PublicClient,
+  address: Address,
+  asset: SupportedAsset,
+  pageNum: number
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  if (!address) throw new Error("Missing address");
+  const chainId = publicClient.chain.id as SupportedChainId;
 
-//   return useInfiniteQuery({
-//     queryKey: ["activeSubPositionHistory", chainId, asset, address],
-//     enabled:
-//       !!address && !marketSnapshotsLoading && !!marketSnapshots?.user?.[asset],
-//     queryFn: async ({ pageParam = 0 }) => {
-//       if (!address || !marketSnapshots?.user?.[asset]) return;
-//       const market = marketSnapshots.user[asset].market;
+  const marketSnapshots = await fetchMarketSnapshots2(publicClient, address);
+  const graphClient = useGraphClient2(chainId);
+  if (!marketSnapshots?.user?.[asset]) throw new Error("Missing market data");
 
-//       // Query for both the open and close checkpoint. The starting version is the greater of the two versions
-//       const queryAccountCloseCheckpoints = gql(`
-//         query CloseAccountCheckpoints($account: Bytes!, $market: Bytes!) {
-//           close: marketAccountCheckpoints(
-//             where: { account: $account, market: $market, type: close }
-//             orderBy: blockNumber, orderDirection: desc, first: 1
-//           ) { market, account, type, version }
-//           open: marketAccountCheckpoints(
-//             where: { account: $account, market: $market, type: open }
-//             orderBy: blockNumber, orderDirection: desc, first: 1
-//           ) { market, account, type, version }
-//         }
-//       `);
-//       const { close, open } = await graphClient.request(
-//         queryAccountCloseCheckpoints,
-//         { account: address, market }
-//       );
+  const market = marketSnapshots.user[asset].market;
 
-//       // Use the greater of the two versions as the starting version
-//       const startVersion = Big6Math.max(
-//         BigOrZero(close[0]?.version) + 1n,
-//         BigOrZero(open[0]?.version)
-//       );
+  // Query for both the open and close checkpoint. The starting version is the greater of the two versions
+  const queryAccountCloseCheckpoints = gql`
+    query CloseAccountCheckpoints($account: Bytes!, $market: Bytes!) {
+      close: marketAccountCheckpoints(
+        where: { account: $account, market: $market, type: close }
+        orderBy: blockNumber
+        orderDirection: desc
+        first: 1
+      ) {
+        market
+        account
+        type
+        version
+      }
+      open: marketAccountCheckpoints(
+        where: { account: $account, market: $market, type: open }
+        orderBy: blockNumber
+        orderDirection: desc
+        first: 1
+      ) {
+        market
+        account
+        type
+        version
+      }
+    }
+  `;
+  const { close, open } = (await graphClient.request(
+    queryAccountCloseCheckpoints,
+    { account: address, market }
+  )) as { close: MarketAccountCheckpoint[]; open: MarketAccountCheckpoint[] };
 
-//       const { changes, hasMore } = await fetchSubPositions({
-//         graphClient,
-//         market,
-//         address,
-//         startVersion,
-//         first: ActivePositionHistoryPageSize,
-//         skip: pageParam * ActivePositionHistoryPageSize,
-//       });
+  // Use the greater of the two versions as the starting version
+  const startVersion = Big6Math.max(
+    BigOrZero(close[0]?.version) + 1n,
+    BigOrZero(open[0]?.version)
+  );
 
-//       return {
-//         changes,
-//         nextCursor: hasMore ? pageParam + 1 : undefined,
-//         checkpoint: { close: close[0], open: open[0] },
-//       };
-//     },
-//     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? 0,
-//   });
-// };
+  const { changes, hasMore } = await fetchSubPositions({
+    graphClient,
+    market,
+    address,
+    startVersion,
+    first: ActivePositionHistoryPageSize,
+    skip: pageNum * ActivePositionHistoryPageSize,
+  });
 
-// const HistoricalPositionsPageSize = 10;
-// export type HistoricalPosition = NonNullable<
-//   NonNullable<
-//     ReturnType<typeof useHistoricalPositions>["data"]
-//   >["pages"][number]
-// >["positions"][number];
-// export const useHistoricalPositions = (maker: boolean) => {
-//   const chainId = useChainId();
-//   const markets = chainAssetsWithAddress(chainId);
-//   const { address } = useAddress();
-//   const graphClient = useGraphClient2();
+  return {
+    changes,
+    nextCursor: hasMore ? pageNum + 1 : undefined,
+    checkpoint: { close: close[0], open: open[0] },
+  };
+};
 
-//   return useInfiniteQuery({
-//     queryKey: [
-//       "historicalPositions",
-//       chainId,
-//       maker ? "maker" : "taker",
-//       address,
-//     ],
-//     enabled: !!address && !!markets.length,
-//     queryFn: async ({
-//       pageParam,
-//     }: {
-//       pageParam?: {
-//         page: number;
-//         checkpoints?: MarketsAccountCheckpointsQuery;
-//       };
-//     }) => {
-//       if (!address || !markets.length) return;
+// pageParam?: {
+//     page: number;
+//     checkpoints?: MarketsAccountCheckpointsQuery;
+//   };
 
-//       const queryMarketsAccountCheckpoints = gql(`
-//         query MarketsAccountCheckpoints(
-//           $account: Bytes!, $markets: [Bytes!]!, $sides: [PositionSide!]!, $first: Int!, $skip: Int!
-//         ) {
-//           marketAccountCheckpoints(
-//             where: { account: $account, market_in: $markets, side_in: $sides },
-//             orderBy: version, orderDirection: desc, first: $first, skip: $skip
-//           ) { market, account, type, version, blockNumber }
-//         }
-//       `);
-//       const checkpoints =
-//         pageParam?.checkpoints ??
-//         (await queryAll(async (pageNumber: number) =>
-//           graphClient.request(queryMarketsAccountCheckpoints, {
-//             account: address,
-//             markets: markets.map(({ marketAddress }) => marketAddress),
-//             first: GraphDefaultPageSize,
-//             skip: pageNumber * GraphDefaultPageSize,
-//             sides: maker
-//               ? [PositionSide.Maker]
-//               : [PositionSide.Long, PositionSide.Short],
-//           })
-//         ));
+const HistoricalPositionsPageSize = 10;
+export type HistoricalPosition = NonNullable<
+  NonNullable<Awaited<ReturnType<typeof useHistoricalPositions>>>
+>["positions"][number];
+export const useHistoricalPositions = async (
+  publicClient: PublicClient,
+  address: Address,
+  maker: boolean,
+  pageParam?: {
+    page: number;
+    checkpoints?: AccountCheckpointsQuery;
+  }
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  if (!address) throw new Error("Missing address");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const markets = chainAssetsWithAddress(chainId);
+  const graphClient = useGraphClient2(chainId);
 
-//       const pageNumber = pageParam?.page ?? 0;
-//       const closes = checkpoints.marketAccountCheckpoints
-//         .filter((c) => c.type === "close")
-//         .slice(
-//           pageNumber * HistoricalPositionsPageSize,
-//           (pageNumber + 1) * HistoricalPositionsPageSize
-//         );
+  if (!address || !markets.length) return;
 
-//       const positionsData = await Promise.all(
-//         closes.map(async (c) => {
-//           // Find the corresponding open
-//           const open = checkpoints.marketAccountCheckpoints.find(
-//             (cc) =>
-//               cc.type === "open" &&
-//               cc.market === c.market &&
-//               Number(cc.blockNumber) < Number(c.blockNumber)
-//           );
+  const queryMarketsAccountCheckpoints = gql`
+    query MarketsAccountCheckpoints(
+      $account: Bytes!
+      $markets: [Bytes!]!
+      $sides: [PositionSide!]!
+      $first: Int!
+      $skip: Int!
+    ) {
+      marketAccountCheckpoints(
+        where: { account: $account, market_in: $markets, side_in: $sides }
+        orderBy: version
+        orderDirection: desc
+        first: $first
+        skip: $skip
+      ) {
+        market
+        account
+        type
+        version
+        blockNumber
+      }
+    }
+  `;
+  const checkpoints =
+    pageParam?.checkpoints ??
+    ((await queryAll(async (pageNumber: number) =>
+      graphClient.request(queryMarketsAccountCheckpoints, {
+        account: address,
+        markets: markets.map(({ marketAddress }) => marketAddress),
+        first: GraphDefaultPageSize,
+        skip: pageNumber * GraphDefaultPageSize,
+        sides: maker
+          ? [PositionSide.Maker]
+          : [PositionSide.Long, PositionSide.Short],
+      })
+    )) as { marketAccountCheckpoints: MarketAccountCheckpoint[] });
 
-//           if (!open) return;
+  const pageNumber = pageParam?.page ?? 0;
+  const closes = checkpoints.marketAccountCheckpoints
+    .filter((c) => c.type === "close")
+    .slice(
+      pageNumber * HistoricalPositionsPageSize,
+      (pageNumber + 1) * HistoricalPositionsPageSize
+    );
 
-//           const data = await fetchPositionData({
-//             graphClient,
-//             address,
-//             market: getAddress(c.market),
-//             startVersion: BigInt(open.version),
-//             endVersion: BigInt(c.version),
-//           });
+  const positionsData = await Promise.all(
+    closes.map(async (c) => {
+      // Find the corresponding open
+      const open = checkpoints.marketAccountCheckpoints.find(
+        (cc) =>
+          cc.type === "open" &&
+          cc.market === c.market &&
+          Number(cc.blockNumber) < Number(c.blockNumber)
+      );
 
-//           return data;
-//         })
-//       );
+      if (!open) return;
 
-//       const positions = positionsData.filter(notEmpty);
+      const data = await fetchPositionData({
+        graphClient,
+        address,
+        market: getAddress(c.market),
+        startVersion: BigInt(open.version),
+        endVersion: BigInt(c.version),
+      });
 
-//       return {
-//         positions,
-//         nextPageParam:
-//           closes.length === HistoricalPositionsPageSize
-//             ? {
-//                 page: (pageParam?.page ?? 0) + 1,
-//                 checkpoints,
-//               }
-//             : undefined,
-//       };
-//     },
-//     getNextPageParam: (lastPage) => lastPage?.nextPageParam,
-//   });
-// };
+      return data;
+    })
+  );
+
+  const positions = positionsData.filter(notEmpty);
+
+  return {
+    positions,
+    nextPageParam:
+      closes.length === HistoricalPositionsPageSize
+        ? {
+            page: (pageParam?.page ?? 0) + 1,
+            checkpoints,
+          }
+        : undefined,
+  };
+};
 
 async function fetchPositionData({
   graphClient,
@@ -777,421 +800,543 @@ async function fetchPositionData({
   return position;
 }
 
-// const HistoricalSubPositionsPageSize = 100;
-// export const useHistoricalSubPositions = ({
-//   market,
-//   startVersion,
-//   endVersion,
-// }: {
-//   market: Address;
-//   startVersion: string;
-//   endVersion: string;
-// }) => {
-//   const chainId = useChainId();
-//   const graphClient = useGraphClient2();
-//   const { address } = useAddress();
+const HistoricalSubPositionsPageSize = 100;
+export const useHistoricalSubPositions = async ({
+  publicClient,
+  address,
+  market,
+  startVersion,
+  endVersion,
+  pageParam,
+}: {
+  publicClient: PublicClient;
+  address: Address;
+  market: Address;
+  startVersion: string;
+  endVersion: string;
+  pageParam: number;
+}) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  if (!address) throw new Error("Missing address");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const graphClient = useGraphClient2(chainId);
 
-//   return useInfiniteQuery({
-//     queryKey: [
-//       "historicalSubPositions",
-//       chainId,
-//       market,
-//       startVersion,
-//       endVersion,
-//       address,
-//     ],
-//     enabled: !!address,
-//     queryFn: async ({ pageParam = 0 }) => {
-//       if (!address) return;
-//       const { changes, hasMore } = await fetchSubPositions({
-//         graphClient,
-//         address,
-//         market: market,
-//         startVersion: BigInt(startVersion),
-//         endVersion: BigInt(endVersion),
-//         first: HistoricalSubPositionsPageSize,
-//         skip: pageParam * HistoricalSubPositionsPageSize,
-//       });
+  if (!address) return;
+  const { changes, hasMore } = await fetchSubPositions({
+    graphClient,
+    address,
+    market: market,
+    startVersion: BigInt(startVersion),
+    endVersion: BigInt(endVersion),
+    first: HistoricalSubPositionsPageSize,
+    skip: pageParam * HistoricalSubPositionsPageSize,
+  });
 
-//       return { changes, nextPageParam: hasMore ? pageParam + 1 : undefined };
-//     },
-//     getNextPageParam: (lastPage) => lastPage?.nextPageParam,
-//   });
-// };
+  return { changes, nextPageParam: hasMore ? pageParam + 1 : undefined };
+};
 
-// export type SubPositionChange = Awaited<
-//   ReturnType<typeof fetchSubPositions>
-// >["changes"][number];
-// async function fetchSubPositions({
-//   graphClient,
-//   address,
-//   market,
-//   startVersion,
-//   endVersion,
-//   first,
-//   skip,
-// }: {
-//   graphClient: GraphQLClient;
-//   address: Address;
-//   market: Address;
-//   startVersion: bigint;
-//   endVersion?: bigint;
-//   first: number;
-//   skip: number;
-// }) {
-//   const accountUpdatesQuery = gql(`
-//     query fetchSubPositions_AccountUpdates(
-//       $account: Bytes!, $market: Bytes!, $startVersion: BigInt!, $endVersion: BigInt! $first: Int!, $skip: Int!
-//     ) {
-//       updateds(
-//         where: { market: $market, account: $account, version_gte: $startVersion, version_lte: $endVersion },
-//         orderBy: version, orderDirection: desc, first: $first, skip: $skip
-//       ) {
-//         version, collateral, newMaker, newLong, newShort, valid, transactionHash, price, priceImpactFee,
-//         localPositionId, globalPositionId, market, account, blockNumber, blockTimestamp, protect, interfaceFee, orderFee
-//       }
+export type SubPositionChange = Awaited<
+  ReturnType<typeof fetchSubPositions>
+>["changes"][number];
+async function fetchSubPositions({
+  graphClient,
+  address,
+  market,
+  startVersion,
+  endVersion,
+  first,
+  skip,
+}: {
+  graphClient: GraphQLClient;
+  address: Address;
+  market: Address;
+  startVersion: bigint;
+  endVersion?: bigint;
+  first: number;
+  skip: number;
+}) {
+  const accountUpdatesQuery = gql`
+    query fetchSubPositions_AccountUpdates(
+      $account: Bytes!
+      $market: Bytes!
+      $startVersion: BigInt!
+      $endVersion: BigInt!
+      $first: Int!
+      $skip: Int!
+    ) {
+      updateds(
+        where: {
+          market: $market
+          account: $account
+          version_gte: $startVersion
+          version_lte: $endVersion
+        }
+        orderBy: version
+        orderDirection: desc
+        first: $first
+        skip: $skip
+      ) {
+        version
+        collateral
+        newMaker
+        newLong
+        newShort
+        valid
+        transactionHash
+        price
+        priceImpactFee
+        localPositionId
+        globalPositionId
+        market
+        account
+        blockNumber
+        blockTimestamp
+        protect
+        interfaceFee
+        orderFee
+      }
 
-//       accountPositionProcesseds(
-//         where: {
-//           market: $market, account: $account, toOracleVersion_gte: $startVersion, fromOracleVersion_lte: $endVersion
-//         },
-//         orderBy: toOracleVersion, orderDirection: desc
-//       ) {
-//         accumulationResult_collateralAmount, accumulationResult_keeper, accumulationResult_positionFee, priceImpactFee
-//         accumulatedPnl, accumulatedFunding, accumulatedInterest, accumulatedMakerPositionFee, accumulatedValue
-//         side, size, fromOracleVersion, toOracleVersion, toVersionPrice, toVersionValid, collateral, blockNumber
-//       }
+      accountPositionProcesseds(
+        where: {
+          market: $market
+          account: $account
+          toOracleVersion_gte: $startVersion
+          fromOracleVersion_lte: $endVersion
+        }
+        orderBy: toOracleVersion
+        orderDirection: desc
+      ) {
+        accumulationResult_collateralAmount
+        accumulationResult_keeper
+        accumulationResult_positionFee
+        priceImpactFee
+        accumulatedPnl
+        accumulatedFunding
+        accumulatedInterest
+        accumulatedMakerPositionFee
+        accumulatedValue
+        side
+        size
+        fromOracleVersion
+        toOracleVersion
+        toVersionPrice
+        toVersionValid
+        collateral
+        blockNumber
+      }
 
-//       nextUpdate: updateds(
-//         where: { market: $market, account: $account, version_gt: $endVersion },
-//         orderBy: version, orderDirection: asc, first: 1
-//       ) {
-//         version, collateral, newMaker, newLong, newShort, valid, transactionHash, price, priceImpactFee,
-//         localPositionId, globalPositionId, market, account, blockNumber, blockTimestamp, protect, interfaceFee, orderFee
-//       }
-//     }
-//   `);
+      nextUpdate: updateds(
+        where: { market: $market, account: $account, version_gt: $endVersion }
+        orderBy: version
+        orderDirection: asc
+        first: 1
+      ) {
+        version
+        collateral
+        newMaker
+        newLong
+        newShort
+        valid
+        transactionHash
+        price
+        priceImpactFee
+        localPositionId
+        globalPositionId
+        market
+        account
+        blockNumber
+        blockTimestamp
+        protect
+        interfaceFee
+        orderFee
+      }
+    }
+  `;
 
-//   const { updateds, accountPositionProcesseds, nextUpdate } =
-//     await graphClient.request(accountUpdatesQuery, {
-//       account: address,
-//       market,
-//       startVersion: startVersion.toString(),
-//       endVersion: endVersion ? endVersion.toString() : nowSeconds().toString(),
-//       first,
-//       skip,
-//     });
+  const { updateds, accountPositionProcesseds, nextUpdate } =
+    (await graphClient.request(accountUpdatesQuery, {
+      account: address,
+      market,
+      startVersion: startVersion.toString(),
+      endVersion: endVersion ? endVersion.toString() : nowSeconds().toString(),
+      first,
+      skip,
+    })) as {
+      updateds: Updated[];
+      accountPositionProcesseds: AccountPositionProcessed[];
+      nextUpdate: Updated[];
+    };
 
-//   const changes = updateds.map((update, i, self) => {
-//     const accumulations = accountPositionProcesseds.filter(
-//       (p) =>
-//         BigInt(p.toOracleVersion) >= BigInt(update.version) &&
-//         (i > 0
-//           ? BigInt(p.toOracleVersion) < BigInt(updateds[i - 1].version)
-//           : true)
-//     );
+  const changes = updateds.map((update, i, self) => {
+    const accumulations = accountPositionProcesseds.filter(
+      (p) =>
+        BigInt(p.toOracleVersion) >= BigInt(update.version) &&
+        (i > 0
+          ? BigInt(p.toOracleVersion) < BigInt(updateds[i - 1].version)
+          : true)
+    );
 
-//     const magnitude_ = magnitude(
-//       update.newMaker,
-//       update.newLong,
-//       update.newShort
-//     );
-//     const side = side2(update.newMaker, update.newLong, update.newShort);
-//     const prevValid = updateds.find(
-//       (u) => u.version < update.version && u.valid
-//     );
-//     const prevSide = prevValid
-//       ? side2(prevValid.newMaker, prevValid.newLong, prevValid.newShort)
-//       : PositionSide2.none;
-//     const delta =
-//       prevValid && update.valid
-//         ? magnitude_ -
-//           magnitude(prevValid.newMaker, prevValid.newLong, prevValid.newShort)
-//         : BigInt(update.version) === startVersion ||
-//           (i === self.length - 1 && startVersion === 1n)
-//         ? magnitude_
-//         : null;
+    const magnitude_ = magnitude(
+      update.newMaker,
+      update.newLong,
+      update.newShort
+    );
+    const side = side2(update.newMaker, update.newLong, update.newShort);
+    const prevValid = updateds.find(
+      (u) => u.version < update.version && u.valid
+    );
+    const prevSide = prevValid
+      ? side2(prevValid.newMaker, prevValid.newLong, prevValid.newShort)
+      : PositionSide2.none;
+    const delta =
+      prevValid && update.valid
+        ? magnitude_ -
+          magnitude(prevValid.newMaker, prevValid.newLong, prevValid.newShort)
+        : BigInt(update.version) === startVersion ||
+          (i === self.length - 1 && startVersion === 1n)
+        ? magnitude_
+        : null;
 
-//     let priceWithImpact = BigInt(update.price);
+    let priceWithImpact = BigInt(update.price);
 
-//     const realizedValues = accumulateRealized(accumulations);
-//     if (!!delta && (side === "long" || prevSide === "long"))
-//       priceWithImpact =
-//         priceWithImpact +
-//         Big6Math.div(BigOrZero(update.priceImpactFee), Big6Math.abs(delta));
-//     if (!!delta && (side === "short" || prevSide === "short"))
-//       priceWithImpact =
-//         priceWithImpact -
-//         Big6Math.div(BigOrZero(update.priceImpactFee), Big6Math.abs(delta));
-//     if (side !== "maker")
-//       realizedValues.pnl = realizedValues.pnl - BigInt(update.priceImpactFee);
+    const realizedValues = accumulateRealized(accumulations);
+    if (!!delta && (side === "long" || prevSide === "long"))
+      priceWithImpact =
+        priceWithImpact +
+        Big6Math.div(BigOrZero(update.priceImpactFee), Big6Math.abs(delta));
+    if (!!delta && (side === "short" || prevSide === "short"))
+      priceWithImpact =
+        priceWithImpact -
+        Big6Math.div(BigOrZero(update.priceImpactFee), Big6Math.abs(delta));
+    if (side !== "maker")
+      realizedValues.pnl = realizedValues.pnl - BigInt(update.priceImpactFee);
 
-//     return {
-//       ...update,
-//       magnitude: magnitude_,
-//       priceWithImpact,
-//       delta,
-//       accumulations,
-//       realizedValues,
-//       collateralOnly: magnitude_ === 0n && BigOrZero(update.collateral) !== 0n,
-//     };
-//   });
+    return {
+      ...update,
+      magnitude: magnitude_,
+      priceWithImpact,
+      delta,
+      accumulations,
+      realizedValues,
+      collateralOnly: magnitude_ === 0n && BigOrZero(update.collateral) !== 0n,
+    };
+  });
 
-//   // Check if the next update is a collateral only change, and if so pull it in as a new update that is part of this
-//   // position. This is done because the graph does not include collateral only updates as part of the checkpointing
-//   // system, but it's a nicer UX if we include them as part of the position history
-//   if (
-//     nextUpdate[0] &&
-//     magnitude(
-//       nextUpdate[0].newMaker,
-//       nextUpdate[0].newLong,
-//       nextUpdate[0].newShort
-//     ) === 0n
-//   ) {
-//     if (changes[0].accumulations[0].toOracleVersion === nextUpdate[0].version) {
-//       changes.unshift({
-//         ...nextUpdate[0],
-//         magnitude: 0n,
-//         priceWithImpact: 0n,
-//         delta: null,
-//         accumulations: [changes[0].accumulations[0]],
-//         realizedValues: accumulateRealized([changes[0].accumulations[0]]),
-//         collateralOnly: true,
-//       });
-//     }
-//   }
+  // Check if the next update is a collateral only change, and if so pull it in as a new update that is part of this
+  // position. This is done because the graph does not include collateral only updates as part of the checkpointing
+  // system, but it's a nicer UX if we include them as part of the position history
+  if (
+    nextUpdate[0] &&
+    magnitude(
+      nextUpdate[0].newMaker,
+      nextUpdate[0].newLong,
+      nextUpdate[0].newShort
+    ) === 0n
+  ) {
+    if (changes[0].accumulations[0].toOracleVersion === nextUpdate[0].version) {
+      changes.unshift({
+        ...nextUpdate[0],
+        magnitude: 0n,
+        priceWithImpact: 0n,
+        delta: null,
+        accumulations: [changes[0].accumulations[0]],
+        realizedValues: accumulateRealized([changes[0].accumulations[0]]),
+        collateralOnly: true,
+      });
+    }
+  }
 
-//   return { changes, hasMore: updateds.length === first };
-// }
+  return { changes, hasMore: updateds.length === first };
+}
 
-// const OpenOrdersPageSize = 10;
-// export const useOpenOrders = (isMaker?: boolean) => {
-//   const chainId = useChainId();
-//   const { address } = useAddress();
-//   const graphClient = useGraphClient2();
-//   const markets = chainAssetsWithAddress(chainId);
+const OpenOrdersPageSize = 10;
+export const useOpenOrders = async (
+  publicClient: PublicClient,
+  address: Address,
+  pageParam: number,
+  isMaker?: boolean
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  if (!address) throw new Error("Missing address");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const graphClient = useGraphClient2(chainId);
+  const markets = chainAssetsWithAddress(chainId);
 
-//   return useInfiniteQuery({
-//     queryKey: ["openOrders", chainId, address, isMaker ? "maker" : "taker"],
-//     enabled: !!address && !!markets.length,
-//     queryFn: async ({ pageParam = 0 }) => {
-//       if (!address || !markets.length) return;
+  if (!address || !markets.length) return;
 
-//       const queryOpenOrders = gql(`
-//         query OpenOrders($account: Bytes!, $markets: [Bytes!]!, $side: [Int!]!, $first: Int!, $skip: Int!) {
-//           multiInvokerOrderPlaceds(
-//             where: { account: $account, market_in: $markets, cancelled: false, executed: false, order_side_in: $side },
-//             orderBy: nonce, orderDirection: desc, first: $first, skip: $skip
-//           ) {
-//               account, market, nonce, order_side, order_comparison, order_fee, order_price, order_delta
-//               blockNumber, blockTimestamp, transactionHash
-//             }
-//         }
-//       `);
+  const queryOpenOrders = gql`
+    query OpenOrders(
+      $account: Bytes!
+      $markets: [Bytes!]!
+      $side: [Int!]!
+      $first: Int!
+      $skip: Int!
+    ) {
+      multiInvokerOrderPlaceds(
+        where: {
+          account: $account
+          market_in: $markets
+          cancelled: false
+          executed: false
+          order_side_in: $side
+        }
+        orderBy: nonce
+        orderDirection: desc
+        first: $first
+        skip: $skip
+      ) {
+        account
+        market
+        nonce
+        order_side
+        order_comparison
+        order_fee
+        order_price
+        order_delta
+        blockNumber
+        blockTimestamp
+        transactionHash
+      }
+    }
+  `;
 
-//       const { multiInvokerOrderPlaceds: openOrders } =
-//         await graphClient.request(queryOpenOrders, {
-//           account: address,
-//           markets: markets.map(({ marketAddress }) => marketAddress),
-//           first: OpenOrdersPageSize,
-//           skip: pageParam * OpenOrdersPageSize,
-//           side: isMaker ? [0, 3] : [1, 2, 3], // 4 = collateral withdrawal
-//         });
+  const { multiInvokerOrderPlaceds: openOrders } = (await graphClient.request(
+    queryOpenOrders,
+    {
+      account: address,
+      markets: markets.map(({ marketAddress }) => marketAddress),
+      first: OpenOrdersPageSize,
+      skip: pageParam * OpenOrdersPageSize,
+      side: isMaker ? [0, 3] : [1, 2, 3], // 4 = collateral withdrawal
+    }
+  )) as { multiInvokerOrderPlaceds: MultiInvokerOrderPlaced[] };
 
-//       return {
-//         openOrders,
-//         nextPageParam:
-//           openOrders.length === OpenOrdersPageSize ? pageParam + 1 : undefined,
-//       };
-//     },
-//     getNextPageParam: (lastPage) => lastPage?.nextPageParam,
-//   });
-// };
+  return {
+    openOrders,
+    nextPageParam:
+      openOrders.length === OpenOrdersPageSize ? pageParam + 1 : undefined,
+  };
+};
 
-// export const useMarket24hrData = (asset: SupportedAsset) => {
-//   const chainId = useChainId();
-//   const graphClient = useGraphClient2();
-//   const market = ChainMarkets2[chainId][asset];
+export const useMarket24hrData = (
+  publicClient: PublicClient,
+  address: Address,
+  asset: SupportedAsset
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  if (!address) throw new Error("Missing address");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const graphClient = useGraphClient2(chainId);
+  const market = ChainMarkets2[chainId][asset];
+  if (!market) throw new Error("Missing market");
 
-//   return useQuery({
-//     queryKey: ["market24hData", chainId, asset],
-//     enabled: !!market,
-//     queryFn: async () => {
-//       if (!market) return;
+  const { from, to } = last24hrBounds();
+  const query = gql`
+    query Market24hrData($market: Bytes!, $from: BigInt!, $to: BigInt!) {
+      volume: bucketedVolumes(
+        where: {
+          bucket: hourly
+          market: $market
+          periodStartTimestamp_gte: $from
+          periodStartTimestamp_lte: $to
+        }
+        orderBy: periodStartTimestamp
+        orderDirection: asc
+      ) {
+        periodStartTimestamp
+        longNotional
+        shortNotional
+        market
+      }
+    }
+  `;
 
-//       const { from, to } = last24hrBounds();
+  return graphClient.request(query, {
+    market,
+    from: from.toString(),
+    to: to.toString(),
+  }) as Promise<{ volume: BucketedVolume[] }>;
+};
 
-//       const query = gql(`
-//         query Market24hrData($market: Bytes!, $from: BigInt!, $to: BigInt!) {
-//           volume: bucketedVolumes(
-//             where:{bucket: hourly, market: $market, periodStartTimestamp_gte: $from, periodStartTimestamp_lte: $to}
-//             orderBy: periodStartTimestamp
-//             orderDirection: asc
-//           ) {
-//             periodStartTimestamp
-//             longNotional
-//             shortNotional
-//             market
-//           }
-//         }
-//       `);
+export const useMarket7dData = async (
+  publicClient: PublicClient,
+  address: Address,
+  asset: SupportedAsset
+) => {
+  if (!publicClient.chain) throw new Error("Missing chain");
+  if (!address) throw new Error("Missing address");
+  const chainId = publicClient.chain.id as SupportedChainId;
+  const graphClient = useGraphClient2(chainId);
 
-//       return graphClient.request(query, {
-//         market,
-//         from: from.toString(),
-//         to: to.toString(),
-//       });
-//     },
-//   });
-// };
+  const market = ChainMarkets2[chainId][asset];
 
-// export const useMarket7dData = (asset: SupportedAsset) => {
-//   const chainId = useChainId();
-//   const graphClient = useGraphClient2();
-//   const market = ChainMarkets2[chainId][asset];
+  if (!market) return;
 
-//   return useQuery({
-//     queryKey: ["market7dData", chainId, asset],
-//     enabled: !!market,
-//     queryFn: async () => {
-//       if (!market) return;
+  const { from, to } = last7dBounds();
 
-//       const { from, to } = last7dBounds();
+  const query = gql`
+    query Market7DayVolume($market: Bytes!, $from: BigInt!, $to: BigInt!) {
+      volume: bucketedVolumes(
+        where: {
+          bucket: daily
+          market: $market
+          periodStartTimestamp_gte: $from
+          periodStartTimestamp_lte: $to
+        }
+        orderBy: periodStartTimestamp
+        orderDirection: asc
+      ) {
+        market
+        longNotional
+        shortNotional
+      }
 
-//       const query = gql(`
-//         query Market7DayVolume($market: Bytes!, $from: BigInt!, $to: BigInt!) {
-//           volume: bucketedVolumes(
-//             where:{bucket: daily, market: $market, periodStartTimestamp_gte: $from, periodStartTimestamp_lte: $to}
-//             orderBy: periodStartTimestamp, orderDirection: asc
-//           ) {
-//             market
-//             longNotional
-//             shortNotional
-//           }
+      hourlyFunding: bucketedVolumes(
+        where: {
+          bucket: hourly
+          market: $market
+          periodStartTimestamp_gte: $from
+          periodStartTimestamp_lte: $to
+        }
+        orderBy: periodStartTimestamp
+        orderDirection: asc
+      ) {
+        market
+        weightedLongFunding
+        weightedLongInterest
+        totalWeight
+        periodStartTimestamp
+        periodEndTimestamp
+      }
 
-//           hourlyFunding: bucketedVolumes(
-//             where: {bucket: hourly, market: $market, periodStartTimestamp_gte: $from, periodStartTimestamp_lte: $to}
-//             orderBy: periodStartTimestamp, orderDirection: asc
-//           ) {
-//             market
-//             weightedLongFunding
-//             weightedLongInterest
-//             totalWeight
-//             periodStartTimestamp
-//             periodEndTimestamp
-//           }
+      firstNonZeroFunding: bucketedVolumes(
+        where: {
+          and: [
+            { bucket: hourly, market: $market, periodStartTimestamp_lt: $from }
+            {
+              or: [
+                { weightedLongFunding_gt: 0 }
+                { weightedLongInterest_gt: 0 }
+              ]
+            }
+          ]
+        }
+        orderBy: periodStartTimestamp
+        orderDirection: desc
+        first: 1
+      ) {
+        market
+        weightedLongFunding
+        weightedLongInterest
+        totalWeight
+        periodStartTimestamp
+        periodEndTimestamp
+      }
 
-//           firstNonZeroFunding: bucketedVolumes(
-//             where: {
-//               and: [
-//                 {bucket: hourly, market: $market, periodStartTimestamp_lt: $from },
-//                 {or: [
-//                   {weightedLongFunding_gt: 0 },
-//                   {weightedLongInterest_gt: 0 },
-//                 ]}
-//               ]
-//             }
-//             orderBy: periodStartTimestamp, orderDirection: desc, first: 1
-//           ) {
-//             market
-//             weightedLongFunding
-//             weightedLongInterest
-//             totalWeight
-//             periodStartTimestamp
-//             periodEndTimestamp
-//           }
+      currentAccumulator: marketAccumulators(
+        where: { market: $market, latest: true }
+      ) {
+        market
+        fundingMaker
+        interestMaker
+        positionFeeMaker
+      }
 
-//           currentAccumulator: marketAccumulators(
-//             where: { market: $market, latest: true }
-//           ) {
-//             market, fundingMaker, interestMaker, positionFeeMaker
-//           }
+      startAccumulator: marketAccumulators(
+        where: { market: $market, version_gte: $from }
+        first: 1
+        orderBy: version
+        orderDirection: asc
+      ) {
+        market
+        fundingMaker
+        interestMaker
+        positionFeeMaker
+        version
+      }
+    }
+  `;
 
-//           startAccumulator: marketAccumulators(
-//             where: { market: $market, version_gte: $from }, first: 1, orderBy: version, orderDirection: asc
-//           ) {
-//             market, fundingMaker, interestMaker, positionFeeMaker, version
-//           }
-//         }
-//       `);
+  const {
+    volume,
+    hourlyFunding,
+    firstNonZeroFunding,
+    currentAccumulator,
+    startAccumulator,
+  } = (await graphClient.request(query, {
+    market: market,
+    from: from.toString(),
+    to: to.toString(),
+  })) as {
+    volume: BucketedVolume[];
+    hourlyFunding: BucketedVolume[];
+    firstNonZeroFunding: BucketedVolume[];
+    currentAccumulator: MarketAccumulator[];
+    startAccumulator: MarketAccumulator[];
+  };
 
-//       const {
-//         volume,
-//         hourlyFunding,
-//         firstNonZeroFunding,
-//         currentAccumulator,
-//         startAccumulator,
-//       } = await graphClient.request(query, {
-//         market: market,
-//         from: from.toString(),
-//         to: to.toString(),
-//       });
+  const takerVolumes = {
+    long: sum(volume.map((v) => BigInt(v.longNotional))),
+    short: sum(volume.map((v) => BigInt(v.shortNotional))),
+  };
 
-//       const takerVolumes = {
-//         long: sum(volume.map((v) => BigInt(v.longNotional))),
-//         short: sum(volume.map((v) => BigInt(v.shortNotional))),
-//       };
+  const fundingRates = hourlyFunding
+    .map((f, i) => {
+      let total =
+        BigOrZero(f?.weightedLongFunding) + BigOrZero(f?.weightedLongInterest);
+      let totalWeight = BigInt(f.totalWeight);
 
-//       const fundingRates = hourlyFunding
-//         .map((f, i) => {
-//           let total =
-//             BigOrZero(f?.weightedLongFunding) +
-//             BigOrZero(f?.weightedLongInterest);
-//           let totalWeight = BigInt(f.totalWeight);
+      // Set the initial rate to the first non-zero funding rate if the first bucket is zero
+      if (i === 0 && total === 0n) {
+        total =
+          BigOrZero(firstNonZeroFunding.at(0)?.weightedLongFunding) +
+          BigOrZero(firstNonZeroFunding.at(0)?.weightedLongInterest);
+        totalWeight = BigOrZero(firstNonZeroFunding.at(0)?.totalWeight);
+      }
 
-//           // Set the initial rate to the first non-zero funding rate if the first bucket is zero
-//           if (i === 0 && total === 0n) {
-//             total =
-//               BigOrZero(firstNonZeroFunding.at(0)?.weightedLongFunding) +
-//               BigOrZero(firstNonZeroFunding.at(0)?.weightedLongInterest);
-//             totalWeight = BigOrZero(firstNonZeroFunding.at(0)?.totalWeight);
-//           }
+      if (total === 0n) {
+        return;
+      }
 
-//           if (total === 0n) {
-//             return;
-//           }
+      const scaleFactor = Big6Math.fromFloatString(
+        (Number(Hour) / Number(totalWeight)).toString()
+      );
+      const unscaledRate = Big6Math.div(total, totalWeight);
+      const hrRate = Big6Math.div(
+        Big6Math.mul(unscaledRate, scaleFactor),
+        Big6Math.ONE
+      );
+      return { timestamp: BigInt(f.periodStartTimestamp), hrRate };
+    })
+    .filter(notEmpty);
 
-//           const scaleFactor = Big6Math.fromFloatString(
-//             (Number(Hour) / Number(totalWeight)).toString()
-//           );
-//           const unscaledRate = Big6Math.div(total, totalWeight);
-//           const hrRate = Big6Math.div(
-//             Big6Math.mul(unscaledRate, scaleFactor),
-//             Big6Math.ONE
-//           );
-//           return { timestamp: BigInt(f.periodStartTimestamp), hrRate };
-//         })
-//         .filter(notEmpty);
-
-//       // Scale accumulation values to fill the 7d window
-//       const accumulatorScaleFactor = Big6Math.fromFloatString(
-//         (
-//           Number(7n * Day) /
-//           Number(to - Number(startAccumulator.at(0)?.version ?? from))
-//         ).toString()
-//       );
-//       return {
-//         takerVolumes,
-//         fundingRates,
-//         // Accumulations are the delta between now and start, scaled to fill the 7d window
-//         makerAccumulation: {
-//           funding: Big6Math.mul(
-//             BigOrZero(currentAccumulator[0]?.fundingMaker) -
-//               BigOrZero(startAccumulator[0]?.fundingMaker),
-//             accumulatorScaleFactor
-//           ),
-//           interest: Big6Math.mul(
-//             BigOrZero(currentAccumulator[0]?.interestMaker) -
-//               BigOrZero(startAccumulator[0]?.interestMaker),
-//             accumulatorScaleFactor
-//           ),
-//           positionFee: Big6Math.mul(
-//             BigOrZero(currentAccumulator[0]?.positionFeeMaker) -
-//               BigOrZero(startAccumulator[0]?.positionFeeMaker),
-//             accumulatorScaleFactor
-//           ),
-//         },
-//       };
-//     },
-//   });
-// };
+  // Scale accumulation values to fill the 7d window
+  const accumulatorScaleFactor = Big6Math.fromFloatString(
+    (
+      Number(7n * Day) /
+      Number(to - Number(startAccumulator.at(0)?.version ?? from))
+    ).toString()
+  );
+  return {
+    takerVolumes,
+    fundingRates,
+    // Accumulations are the delta between now and start, scaled to fill the 7d window
+    makerAccumulation: {
+      funding: Big6Math.mul(
+        BigOrZero(currentAccumulator[0]?.fundingMaker) -
+          BigOrZero(startAccumulator[0]?.fundingMaker),
+        accumulatorScaleFactor
+      ),
+      interest: Big6Math.mul(
+        BigOrZero(currentAccumulator[0]?.interestMaker) -
+          BigOrZero(startAccumulator[0]?.interestMaker),
+        accumulatorScaleFactor
+      ),
+      positionFee: Big6Math.mul(
+        BigOrZero(currentAccumulator[0]?.positionFeeMaker) -
+          BigOrZero(startAccumulator[0]?.positionFeeMaker),
+        accumulatorScaleFactor
+      ),
+    },
+  };
+};

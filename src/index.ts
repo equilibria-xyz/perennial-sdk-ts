@@ -78,7 +78,20 @@ export {
   modifyPosition,
 } from "./libs/markets";
 
-export { useActivePositionMarketPnls } from "./libs/graph/market";
+export {
+  type ActiveSubPositionHistory,
+  type HistoricalPosition,
+  type SubPositionChange,
+  useActivePositionMarketPnls,
+  useActiveSubPositionHistory,
+  useHistoricalPositions,
+  useHistoricalSubPositions,
+  useMarket24hrData,
+  useMarket7dData,
+  useOpenOrders,
+} from "./libs/graph/market";
+
+export { useVaults7dAccumulations } from "./libs/graph/vault";
 
 export {
   type VaultSnapshots,
