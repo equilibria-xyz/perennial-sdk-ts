@@ -18,8 +18,6 @@ export { VaultArtifact } from "./artifacts/VaultLens";
 
 /// Contracts
 export {
-  ControllerAddresses,
-  CollateralAddresses,
   MultiInvoker2Addresses,
   MarketFactoryAddresses,
   VaultFactoryAddresses,

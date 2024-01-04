@@ -1,6 +1,7 @@
 import {
   arbitrum,
   arbitrumGoerli,
+  base,
   baseGoerli,
   goerli,
   mainnet,
@@ -17,23 +18,20 @@ import { Big6Math } from "../utils/big6Utils";
 import { OracleFactoryAddresses } from "./contracts";
 import { EvmPriceServiceConnection } from "@pythnetwork/pyth-evm-js";
 import { GraphQLClient } from "graphql-request";
+import { PositionSide2 } from "./markets";
 
 export const SupportedChainIds = [
   arbitrum.id,
-  mainnet.id,
   arbitrumGoerli.id,
-  goerli.id,
-  baseGoerli.id,
+  base.id,
 ] as const;
 
 export type SupportedChainId = (typeof SupportedChainIds)[number];
 
 export const chains: { [chainId in SupportedChainId]: Chain } = {
-  [mainnet.id]: mainnet,
-  [goerli.id]: goerli,
   [arbitrum.id]: arbitrum,
   [arbitrumGoerli.id]: arbitrumGoerli,
-  [baseGoerli.id]: baseGoerli,
+  [base.id]: base,
 };
 
 export const isSupportedChain = (chainId?: number) =>
@@ -62,22 +60,43 @@ export const useGraphClient2 = (chainId: SupportedChainId) => {
 };
 
 export const ExplorerURLs: { [chainId in SupportedChainId]: string } = {
-  [mainnet.id]: mainnet.blockExplorers.default.url,
-  [goerli.id]: goerli.blockExplorers.default.url,
   [arbitrum.id]: arbitrum.blockExplorers.default.url,
   [arbitrumGoerli.id]: arbitrumGoerli.blockExplorers.default.url,
-  [baseGoerli.id]: baseGoerli.blockExplorers.default.url,
+  [base.id]: base.blockExplorers.default.url,
 };
 
 export const interfaceFeeBps: {
-  [chainId in SupportedChainId]?: {
-    feeAmount: bigint;
+  [chainId in SupportedChainId]: {
+    feeAmount: { [key in PositionSide2]: bigint };
     feeRecipientAddress: Address;
   };
 } = {
   [arbitrumGoerli.id]: {
-    feeAmount: Big6Math.fromFloatString("0.0001"),
+    feeAmount: {
+      [PositionSide2.short]: Big6Math.fromFloatString("0.0001"), // 1bps
+      [PositionSide2.long]: Big6Math.fromFloatString("0.0001"), // 1bps
+      [PositionSide2.maker]: 0n,
+      [PositionSide2.none]: 0n,
+    },
     feeRecipientAddress: OracleFactoryAddresses[arbitrumGoerli.id],
+  },
+  [arbitrum.id]: {
+    feeAmount: {
+      [PositionSide2.short]: Big6Math.fromFloatString("0.0001"), // 1bps,
+      [PositionSide2.long]: Big6Math.fromFloatString("0.0001"), // 1bps,
+      [PositionSide2.maker]: 0n,
+      [PositionSide2.none]: 0n,
+    },
+    feeRecipientAddress: OracleFactoryAddresses[arbitrum.id],
+  },
+  [base.id]: {
+    feeAmount: {
+      [PositionSide2.short]: 0n,
+      [PositionSide2.long]: 0n,
+      [PositionSide2.maker]: 0n,
+      [PositionSide2.none]: 0n,
+    },
+    feeRecipientAddress: OracleFactoryAddresses[base.id],
   },
 };
 

@@ -37,6 +37,17 @@ export function size(pos: Position) {
   return pos.maker || pos.taker || BigInt(0);
 }
 
+export type OrderValues = {
+  collateral: string;
+  amount: string;
+  fullClose?: boolean;
+  crossCollateral?: bigint;
+  limitPrice?: string;
+  stopLoss?: string;
+  takeProfit?: string;
+  triggerAmount?: string;
+};
+
 export function magnitude(
   maker: bigint | string,
   long: bigint | string,
@@ -635,53 +646,113 @@ export function calcEstExecutionPrice({
   calculatedFee,
   positionFee,
   orderDirection,
-  position,
+  positionDelta,
 }: {
-  position: bigint;
+  positionDelta: bigint;
   oraclePrice: bigint;
   calculatedFee: bigint;
   positionFee: bigint; // marketSnapshot.parameter.positionFee
   orderDirection: PositionSide2.long | PositionSide2.short;
 }) {
+  const notional = calcNotional(positionDelta, oraclePrice);
   const priceImpact = calcPriceImpactFromTradeFee({
     totalTradeFee: calculatedFee,
     positionFee,
   });
-  const fee = Big6Math.div(priceImpact, position);
+  const priceImpactPercentage =
+    notional > 0n
+      ? Big6Math.div(priceImpact, calcNotional(positionDelta, oraclePrice))
+      : 0n;
+  const fee = Big6Math.div(priceImpact, positionDelta);
+
   return {
     priceImpact: fee,
     total:
       orderDirection === PositionSide2.long
         ? oraclePrice + fee
         : oraclePrice - fee,
+    priceImpactPercentage,
+    nonPriceImpactFee: calculatedFee - priceImpact,
   };
 }
 
 export function calcInterfaceFee({
-  marketSnapshot,
+  positionStatus = PositionStatus.resolved,
+  latestPrice,
   chainId,
   positionDelta,
+  side,
+  referrerInterfaceFeeDiscount,
 }: {
-  marketSnapshot: MarketSnapshot;
+  positionStatus?: PositionStatus;
+  latestPrice: bigint;
   chainId: SupportedChainId;
   positionDelta: bigint;
+  side: PositionSide2;
+  referrerInterfaceFeeDiscount: bigint;
 }) {
   const feeInfo = interfaceFeeBps[chainId];
-  if (!marketSnapshot || !positionDelta || !feeInfo) {
+  if (
+    !latestPrice ||
+    !positionDelta ||
+    !feeInfo ||
+    positionStatus === PositionStatus.failed
+  ) {
     return {
-      interfaceFeeBps: feeInfo?.feeAmount ?? BigInt(0),
-      interfaceFee: BigInt(0),
+      interfaceFeeBps: feeInfo?.feeAmount[PositionSide2.none] ?? 0n,
+      interfaceFee: 0n,
     };
   }
-  const {
-    global: { latestPrice },
-  } = marketSnapshot;
 
   const notional = calcNotional(positionDelta, latestPrice);
-  const interfaceFee = Big6Math.mul(notional, feeInfo.feeAmount);
+  const feeAmount = feeInfo.feeAmount[side];
+  const discountedFeeAmount =
+    feeAmount - Big6Math.mul(feeAmount, referrerInterfaceFeeDiscount);
+  const discountedInterfaceFee = Big6Math.mul(notional, discountedFeeAmount);
 
   return {
-    interfaceFeeBps: feeInfo.feeAmount,
-    interfaceFee,
+    interfaceFeeBps: discountedFeeAmount,
+    interfaceFee: discountedInterfaceFee,
   };
 }
+
+export const getOrderValuesFromPosition = ({
+  userMarketSnapshot,
+  marketSnapshot,
+}: {
+  userMarketSnapshot?: UserMarketSnapshot;
+  marketSnapshot?: MarketSnapshot;
+}) => {
+  if (!marketSnapshot || !userMarketSnapshot) return undefined;
+
+  const nextAmount = userMarketSnapshot?.nextMagnitude ?? 0n;
+  const orderValues = {
+    collateral: Big6Math.toFloatString(
+      userMarketSnapshot?.local.collateral ?? 0n
+    ),
+    amount: Big6Math.toFloatString(nextAmount),
+    leverage: Big6Math.toFloatString(userMarketSnapshot?.nextLeverage ?? 0n),
+  } as OrderValues;
+
+  const positionDelta =
+    userMarketSnapshot.nextMagnitude - userMarketSnapshot.magnitude;
+
+  return {
+    market: marketSnapshot as MarketSnapshot,
+    position: userMarketSnapshot as UserMarketSnapshot,
+    asset: marketSnapshot.asset,
+    positionSide:
+      nextAmount === 0n ? userMarketSnapshot.side : userMarketSnapshot.nextSide,
+    orderValues,
+    positionDelta,
+  };
+};
+
+export const isFailedClose = (position?: UserMarketSnapshot) => {
+  if (!position) return false;
+  return (
+    position.status === PositionStatus.failed &&
+    !Big6Math.isZero(position.magnitude) &&
+    Big6Math.isZero(position.nextMagnitude)
+  );
+};

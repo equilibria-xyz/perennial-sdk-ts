@@ -615,12 +615,12 @@ export const fetchChainLivePrices2 = async (publicClient: PublicClient) => {
   const feedKey = isTestnet(chain) ? "pythFeedIdTestnet" : "pythFeedId";
 
   const feedToAsset = markets.reduce((acc, { asset }) => {
-    const feed = AssetMetadata[asset][feedKey];
+    const feed = AssetMetadata[asset as SupportedAsset][feedKey];
     if (!feed) return acc;
     if (acc[feed]) {
-      acc[feed].push(asset);
+      acc[feed].push(asset as SupportedAsset);
     } else {
-      acc[feed] = [asset];
+      acc[feed] = [asset as SupportedAsset];
     }
     return acc;
   }, {} as { [key: string]: SupportedAsset[] });
