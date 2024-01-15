@@ -1,6 +1,7 @@
 import {
   arbitrum,
   arbitrumGoerli,
+  arbitrumSepolia,
   base,
   baseGoerli,
   goerli,
@@ -23,6 +24,7 @@ import { PositionSide2 } from "./markets";
 export const SupportedChainIds = [
   arbitrum.id,
   arbitrumGoerli.id,
+  arbitrumSepolia.id,
   base.id,
 ] as const;
 
@@ -31,6 +33,7 @@ export type SupportedChainId = (typeof SupportedChainIds)[number];
 export const chains: { [chainId in SupportedChainId]: Chain } = {
   [arbitrum.id]: arbitrum,
   [arbitrumGoerli.id]: arbitrumGoerli,
+  [arbitrumSepolia.id]: arbitrumSepolia,
   [base.id]: base,
 };
 
@@ -41,6 +44,7 @@ export const isSupportedChain = (chainId?: number) =>
 export const isTestnet = (chainId?: number) =>
   chainId === goerli.id ||
   chainId === arbitrumGoerli.id ||
+  chainId === arbitrumSepolia.id ||
   chainId === baseGoerli.id;
 
 export const DefaultChain = arbitrumGoerli; // chains[0] // TODO revert for mainnet
@@ -62,6 +66,7 @@ export const useGraphClient2 = (chainId: SupportedChainId) => {
 export const ExplorerURLs: { [chainId in SupportedChainId]: string } = {
   [arbitrum.id]: arbitrum.blockExplorers.default.url,
   [arbitrumGoerli.id]: arbitrumGoerli.blockExplorers.default.url,
+  [arbitrumSepolia.id]: arbitrumSepolia.blockExplorers.default.url,
   [base.id]: base.blockExplorers.default.url,
 };
 
@@ -79,6 +84,15 @@ export const interfaceFeeBps: {
       [PositionSide2.none]: 0n,
     },
     feeRecipientAddress: OracleFactoryAddresses[arbitrumGoerli.id],
+  },
+  [arbitrumSepolia.id]: {
+    feeAmount: {
+      [PositionSide2.short]: Big6Math.fromFloatString("0.0001"), // 1bps
+      [PositionSide2.long]: Big6Math.fromFloatString("0.0001"), // 1bps
+      [PositionSide2.maker]: 0n,
+      [PositionSide2.none]: 0n,
+    },
+    feeRecipientAddress: OracleFactoryAddresses[arbitrumSepolia.id],
   },
   [arbitrum.id]: {
     feeAmount: {

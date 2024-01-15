@@ -4,6 +4,7 @@ import { linearTransform, microPowerTwoTransform } from "../utils/payoffUtils";
 import {
   arbitrum,
   arbitrumGoerli,
+  arbitrumSepolia,
   base,
   baseGoerli,
   goerli,
@@ -205,6 +206,11 @@ export const ChainMarkets2: {
     [asset in SupportedAsset]?: Address;
   };
 } = {
+  [arbitrumSepolia.id]: {
+    [SupportedAsset.eth]: getAddress(
+      "0x0142a8bfF8D887Fc4f04469fCA6c66F5e0936Ea7"
+    ),
+  },
   [arbitrumGoerli.id]: {
     [SupportedAsset.eth]: getAddress(
       "0xf5Ae549Af3b600086F555aA4e41f3BB8A2EfEf4c"
