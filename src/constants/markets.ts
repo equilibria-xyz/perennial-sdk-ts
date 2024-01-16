@@ -273,7 +273,6 @@ export const chainAssetsWithAddress = (chainId: SupportedChainId) => {
     )
     .filter(notEmpty);
 };
-
 export const addressToAsset2 = (address: Address) => {
   for (const chainId of Object.keys(ChainMarkets2)) {
     for (const asset of Object.keys(
@@ -289,3 +288,8 @@ export const addressToAsset2 = (address: Address) => {
     }
   }
 };
+
+export enum TriggerComparison {
+  lte = "lte",
+  gte = "gte",
+}

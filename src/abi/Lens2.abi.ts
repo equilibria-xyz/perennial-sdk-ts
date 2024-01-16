@@ -1,9 +1,13 @@
 export const Lens2Abi = [
   {
     inputs: [
-      { internalType: "contract IPythOracle", name: "pyth", type: "address" },
+      {
+        internalType: "contract IKeeperFactory",
+        name: "keeperFactory",
+        type: "address",
+      },
       { internalType: "uint256", name: "value", type: "uint256" },
-      { internalType: "uint256", name: "index", type: "uint256" },
+      { internalType: "bytes32[]", name: "ids", type: "bytes32[]" },
       { internalType: "uint256", name: "version", type: "uint256" },
       { internalType: "bytes", name: "updateData", type: "bytes" },
     ],
@@ -17,12 +21,12 @@ export const Lens2Abi = [
       {
         components: [
           {
-            internalType: "contract IPythOracle",
-            name: "pyth",
+            internalType: "contract IKeeperFactory",
+            name: "keeperFactory",
             type: "address",
           },
           { internalType: "uint256", name: "value", type: "uint256" },
-          { internalType: "uint256", name: "index", type: "uint256" },
+          { internalType: "bytes32[]", name: "ids", type: "bytes32[]" },
           { internalType: "uint256", name: "version", type: "uint256" },
           { internalType: "bytes", name: "updateData", type: "bytes" },
         ],

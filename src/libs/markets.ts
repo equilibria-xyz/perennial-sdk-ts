@@ -20,6 +20,7 @@ import {
 import {
   MarketFactoryAddresses,
   MultiInvoker2Addresses,
+  PythFactoryAddresses,
   USDCAddresses,
 } from "../constants/contracts";
 import { AssetMetadata, SupportedAsset } from "../constants/markets";
@@ -46,11 +47,14 @@ import {
 } from "../utils/contractUtils";
 import { calculateFundingForSides } from "../utils/fundingAndInterestUtils";
 import {
+  EmptyInterfaceFee,
+  buildCancelOrder,
   buildCommitPrice,
-  buildInterfaceFee,
+  buildPlaceTriggerOrder,
   buildUpdateMarket,
 } from "../utils/multiinvoker2";
 import {
+  calcInterfaceFee,
   calcLeverage,
   calcNotional,
   getSideFromPosition,
@@ -63,7 +67,13 @@ import { LensArtifact } from "../artifacts/Lens";
 import { MarketFactoryAbi } from "../abi/MarketFactory.abi";
 import { ERC20Abi } from "../abi/ERC20.abi";
 import { MultiInvoker2Abi } from "../abi/MultiInvoker2.abi";
-import { ProductSnapshot, MultiInvoker2Action } from "../types/perennial";
+import {
+  ProductSnapshot,
+  MultiInvoker2Action,
+  ReferrerInterfaceFeeInfo,
+} from "../types/perennial";
+import { PythFactoryAbi } from "../abi/PythFactory.abi";
+import { nowSeconds } from "../utils/timeUtils";
 
 export type ProductSnapshotWithTradeLimitations = ProductSnapshot & {
   canOpenMaker: boolean;
@@ -97,6 +107,12 @@ export const fetchMarketOracles2 = async (publicClient: PublicClient) => {
   if (!publicClient.chain) throw new Error("Missing chain");
   const chainId = publicClient.chain.id as SupportedChainId;
 
+  const pythFactory = getContract({
+    abi: PythFactoryAbi,
+    address: PythFactoryAddresses[chainId],
+    publicClient,
+  });
+
   // Get markets
   const markets = chainAssetsWithAddress(chainId);
   // Get Oracles for markets
@@ -109,24 +125,35 @@ export const fetchMarketOracles2 = async (publicClient: PublicClient) => {
     const oracleAddress = await market.read.oracle();
     // Fetch oracle data
     const oracle = await getOracleContract(oracleAddress, publicClient);
-    const [oracleCurrent] = await oracle.read.global();
-    const [oracleProviderAddress] = await oracle.read.oracles([oracleCurrent]);
-    const oracleProviderContract = getPythProviderContract(
-      oracleProviderAddress,
-      publicClient
+    // Oracle -> KeeperOracle
+    const global = await oracle.read.global();
+    const [keeperOracle] = await oracle.read.oracles([global[0]]);
+
+    // KeeperOracle -> Feed
+    const feedEvents = await pythFactory.getEvents.OracleCreated(
+      { oracle: keeperOracle },
+      {
+        fromBlock: 0n,
+        toBlock: "latest",
+      }
     );
-    const [oracleId, minValidTime] = await Promise.all([
-      oracleProviderContract.read.id(),
-      oracleProviderContract.read.MIN_VALID_TIME_AFTER_VERSION(),
+    const feed = feedEvents[0].args.id;
+    if (!feed) throw new Error(`No feed found for ${keeperOracle}`);
+
+    const [validFrom, underlyingId] = await Promise.all([
+      pythFactory.read.validFrom(),
+      pythFactory.read.toUnderlyingId([feed]),
     ]);
 
     return {
       asset,
       marketAddress,
       address: oracleAddress,
-      providerAddress: oracleProviderAddress,
-      providerId: oracleId,
-      minValidTime,
+      providerFactoryAddress: pythFactory.address,
+      providerAddress: keeperOracle,
+      providerId: feed,
+      underlyingId,
+      minValidTime: validFrom,
     };
   };
 
@@ -488,7 +515,16 @@ export const modifyPosition = async (
     positionAbs?: bigint;
     collateralDelta?: bigint;
     txHistoryLabel?: string;
-    interfaceFee?: bigint;
+    interfaceFee?: {
+      interfaceFee: bigint;
+      referrerFee: bigint;
+      ecosystemFee: bigint;
+    };
+    stopLoss?: bigint;
+    takeProfit?: bigint;
+    settlementFee?: bigint;
+    cancelOrderDetails?: any[]; // FIXME: Type
+    absDifferenceNotional?: bigint;
   } = {}
 ) => {
   if (!walletClient.chain || !walletClient.account)
@@ -500,15 +536,37 @@ export const modifyPosition = async (
   const marketOracles = await fetchMarketOracles2(publicClient);
   const marketSnapshots = await fetchMarketSnapshots2(publicClient, address);
   const pyth = usePyth(publicClient);
+  const defaultInterfaceFeeInfo = interfaceFeeBps[chainId];
 
+  // TODO: Referrer Interface Fee
+  const referrerInterfaceFeeInfo: ReferrerInterfaceFeeInfo = {
+    discount: 0n,
+    share: 0n,
+    referralTarget: zeroAddress,
+    referralCode: "",
+    tier: "",
+  };
   // Position Change Values
   const {
     positionSide,
     positionAbs,
+    collateralDelta,
     txHistoryLabel,
     interfaceFee,
-    collateralDelta,
+    stopLoss,
+    takeProfit,
+    settlementFee,
+    cancelOrderDetails,
+    absDifferenceNotional,
   } = modifyData;
+
+  let cancelOrders: { action: number; args: `0x${string}` }[] = [];
+
+  if (cancelOrderDetails?.length) {
+    cancelOrders = cancelOrderDetails.map(({ market, nonce }) =>
+      buildCancelOrder({ market: getAddress(market), nonce: BigInt(nonce) })
+    );
+  }
 
   const oracleInfo = Object.values(marketOracles).find(
     (o) => o.marketAddress === productAddress
@@ -517,13 +575,40 @@ export const modifyPosition = async (
   const asset = addressToAsset2(productAddress);
 
   // Interface fee
-  const interfaceFeeInfo = interfaceFeeBps[chainId];
-  let chargeFeeAction;
-  if (interfaceFee && interfaceFeeInfo) {
-    chargeFeeAction = buildInterfaceFee({
-      to: interfaceFeeInfo.feeRecipientAddress,
-      amount: interfaceFee,
-    });
+  const interfaceFees: Array<typeof EmptyInterfaceFee> = [];
+  const feeRate = positionSide
+    ? defaultInterfaceFeeInfo.feeAmount[positionSide]
+    : 0n;
+  const tradeFeeBips =
+    absDifferenceNotional && interfaceFee?.interfaceFee
+      ? Big6Math.div(interfaceFee.interfaceFee, absDifferenceNotional)
+      : 0n;
+  if (
+    interfaceFee?.interfaceFee &&
+    tradeFeeBips <= Big6Math.mul(feeRate, Big6Math.fromFloatString("1.05"))
+  ) {
+    const referrerFee = interfaceFee.referrerFee;
+    const ecosystemFee = interfaceFee.ecosystemFee;
+
+    // TODO: If there is a referrer fee, send it to the referrer as USDC
+    // if (referrerInterfaceFeeInfo && referrerFee > 0n)
+    //   interfaceFees.push({
+    //     unwrap: true,
+    //     receiver: getAddress(referrerInterfaceFeeInfo.referralTarget),
+    //     amount: referrerFee,
+    //   });
+
+    if (ecosystemFee > 0n) {
+      interfaceFees.push({
+        unwrap: false, // default recipient holds DSU
+        receiver: defaultInterfaceFeeInfo.feeRecipientAddress,
+        amount: ecosystemFee,
+      });
+    }
+  } else if (
+    tradeFeeBips > Big6Math.mul(feeRate, Big6Math.fromFloatString("1.05"))
+  ) {
+    console.error("Fee exceeds rate - waiving.", address);
   }
 
   const updateAction = buildUpdateMarket({
@@ -531,28 +616,107 @@ export const modifyPosition = async (
     maker: positionSide === PositionSide2.maker ? positionAbs : undefined, // Absolute position size
     long: positionSide === PositionSide2.long ? positionAbs : undefined,
     short: positionSide === PositionSide2.short ? positionAbs : undefined,
-    collateral: (collateralDelta ?? BigInt(0)) - (interfaceFee ?? BigInt(0)), // Delta collateral
+    collateral: collateralDelta ?? 0n, // Delta collateral
     wrap: true,
+    interfaceFee: interfaceFees.at(0),
+    interfaceFee2: interfaceFees.at(1),
   });
 
-  const actions: MultiInvoker2Action[] = [updateAction, chargeFeeAction].filter(
-    notEmpty
-  );
+  const isNotMaker =
+    positionSide !== PositionSide2.maker && positionSide !== PositionSide2.none;
+  // TODO: stopLoss and takeProfit
+  let stopLossAction;
+  if (stopLoss && positionSide && isNotMaker && settlementFee) {
+    const stopLossInterfaceFee = calcInterfaceFee({
+      chainId,
+      latestPrice: stopLoss,
+      side: positionSide,
+      referrerInterfaceFeeDiscount: referrerInterfaceFeeInfo?.discount ?? 0n,
+      positionDelta: positionAbs ?? 0n,
+    });
+    stopLossAction = buildPlaceTriggerOrder({
+      market: productAddress,
+      side: positionSide,
+      triggerPrice: stopLoss,
+      comparison: positionSide === PositionSide2.short ? "gte" : "lte",
+      maxFee: settlementFee * 2n,
+      delta: -(positionAbs ?? 0n),
+      interfaceFee: undefined,
+      // referrerInterfaceFeeInfo && stopLossInterfaceFee.referrerFee
+      //   ? {
+      //       unwrap: true,
+      //       receiver: getAddress(referrerInterfaceFeeInfo.referralTarget),
+      //       amount: stopLossInterfaceFee.referrerFee,
+      //     }
+      //   : undefined,
+      interfaceFee2: undefined,
+      // stopLossInterfaceFee.ecosystemFee > 0n
+      //   ? {
+      //       unwrap: false,
+      //       receiver: defaultInterfaceFeeInfo.feeRecipientAddress,
+      //       amount: stopLossInterfaceFee.ecosystemFee,
+      //     }
+      //   : undefined,
+    });
+  }
 
-  let isPriceStale = false;
-  if (asset && marketSnapshots?.market[asset]) {
+  let takeProfitAction;
+  if (takeProfit && positionSide && isNotMaker && settlementFee) {
+    const takeProfitInterfaceFee = calcInterfaceFee({
+      chainId,
+      latestPrice: takeProfit,
+      side: positionSide,
+      referrerInterfaceFeeDiscount: referrerInterfaceFeeInfo?.discount ?? 0n,
+
+      positionDelta: positionAbs ?? 0n,
+    });
+    takeProfitAction = buildPlaceTriggerOrder({
+      market: productAddress,
+      side: positionSide,
+      triggerPrice: takeProfit,
+      comparison: positionSide === PositionSide2.short ? "lte" : "gte",
+      delta: -(positionAbs ?? 0n),
+      maxFee: settlementFee * 2n,
+      interfaceFee: undefined,
+      // referrerInterfaceFeeInfo && takeProfitInterfaceFee.referrerFee
+      //   ? {
+      //       unwrap: true,
+      //       receiver: getAddress(referrerInterfaceFeeInfo.referralTarget),
+      //       amount: takeProfitInterfaceFee.referrerFee,
+      //     }
+      //   : undefined,
+      interfaceFee2: undefined,
+      // takeProfitInterfaceFee.ecosystemFee > 0n
+      //   ? {
+      //       unwrap: false,
+      //       receiver: defaultInterfaceFeeInfo.feeRecipientAddress,
+      //       amount: takeProfitInterfaceFee.ecosystemFee,
+      //     }
+      //   : undefined,
+    });
+  }
+
+  const actions: MultiInvoker2Action[] = [
+    updateAction,
+    stopLossAction,
+    takeProfitAction,
+    ...cancelOrders,
+  ].filter(notEmpty);
+
+  let isPriceStale = true;
+  const marketSnapshot = asset && marketSnapshots?.market[asset];
+  if (marketSnapshot) {
     const {
       parameter: { maxPendingGlobal, maxPendingLocal },
       riskParameter: { staleAfter },
       pendingPositions,
-    } = marketSnapshots.market[asset];
+    } = marketSnapshot;
     const lastUpdated = await getOracleContract(
       oracleInfo.address,
       publicClient
     ).read.latest();
     isPriceStale =
-      BigInt(Math.floor(Date.now() / 1000)) - lastUpdated.timestamp >
-      staleAfter;
+      BigInt(nowSeconds()) - lastUpdated.timestamp > staleAfter / 2n;
     // If there is a backlog of pending positions, we need to commit the price
     isPriceStale =
       isPriceStale || BigInt(pendingPositions.length) >= maxPendingGlobal;
@@ -565,27 +729,24 @@ export const modifyPosition = async (
 
   // Only add the price commit if the price is stale
   if (isPriceStale) {
-    const { vaa, version } = await getRecentVaa({
-      pyth,
-      feedId: oracleInfo.providerId,
-      minValidTime: oracleInfo.minValidTime,
-    });
+    const [{ version, ids, value, updateData }] =
+      await buildCommitmentsForOracles({
+        publicClient,
+        pyth,
+        marketOracles: [oracleInfo],
+      });
 
     const commitAction = buildCommitPrice({
-      oracle: oracleInfo.providerAddress,
+      keeperFactory: oracleInfo.providerFactoryAddress,
       version,
-      value: BigInt(1),
-      index: await getPythProviderContract(
-        oracleInfo.providerAddress,
-        publicClient
-      ).read.versionListLength(),
-      vaa,
+      value,
+      ids,
+      vaa: updateData,
       revertOnFailure: false,
     });
 
     actions.unshift(commitAction);
   }
-
   const txOpts = {
     account: address || zeroAddress,
     chainId,
@@ -598,12 +759,20 @@ export const modifyPosition = async (
     walletClient,
   });
 
-  const hash = await multiInvoker.write.invoke([actions], {
-    ...txOpts,
-    value: BigInt(1),
-  });
+  try {
+    const hash = await multiInvoker.write.invoke([actions], {
+      ...txOpts,
+      value: 1n,
+    });
 
-  return hash;
+    // Refresh after a timeout to catch missed events
+    // setTimeout(() => refresh(asset), 15000)
+    // setTimeout(() => refresh(asset), 30000)
+    // TODO: non-blocking waitForTransaction and show an error if the tx reverts on chain
+    return hash;
+  } catch (err: any) {
+    console.error(err);
+  }
 };
 
 export const fetchChainLivePrices2 = async (publicClient: PublicClient) => {

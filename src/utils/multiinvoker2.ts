@@ -1,8 +1,15 @@
-import { Address, encodeAbiParameters } from "viem";
+import { Address, encodeAbiParameters, zeroAddress } from "viem";
 
 import { MultiInvoker2Action } from "../types/perennial";
 
 import { UpdateNoOp } from "./positionUtils";
+import { PositionSide2 } from "../constants/markets";
+
+export const EmptyInterfaceFee: {
+  amount: bigint;
+  receiver: Address;
+  unwrap: boolean;
+} = { amount: 0n, receiver: zeroAddress, unwrap: false };
 
 export const buildNoop = (): MultiInvoker2Action => ({
   action: 0,
@@ -16,6 +23,8 @@ export const buildUpdateMarket = ({
   short,
   collateral,
   wrap,
+  interfaceFee,
+  interfaceFee2,
 }: {
   market: Address;
   maker?: bigint;
@@ -23,6 +32,16 @@ export const buildUpdateMarket = ({
   short?: bigint;
   collateral?: bigint;
   wrap?: boolean;
+  interfaceFee?: {
+    amount: bigint;
+    receiver: Address;
+    unwrap: boolean;
+  };
+  interfaceFee2?: {
+    amount: bigint;
+    receiver: Address;
+    unwrap: boolean;
+  };
 }): MultiInvoker2Action => ({
   action: 1,
   args: encodeAbiParameters(
@@ -33,14 +52,58 @@ export const buildUpdateMarket = ({
       { type: "uint256" },
       { type: "int256" },
       { type: "bool" },
+      {
+        type: "tuple",
+        name: "interfaceFee1",
+        components: [
+          {
+            internalType: "UFixed6",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "bool",
+            name: "unwrap",
+            type: "bool",
+          },
+        ],
+      },
+      {
+        type: "tuple",
+        name: "interfaceFee2",
+        components: [
+          {
+            internalType: "UFixed6",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "bool",
+            name: "unwrap",
+            type: "bool",
+          },
+        ],
+      },
     ],
     [
       market,
       maker ?? UpdateNoOp,
       long ?? UpdateNoOp,
       short ?? UpdateNoOp,
-      collateral ?? BigInt(0),
+      collateral ?? 0n,
       !!wrap,
+      interfaceFee ?? EmptyInterfaceFee,
+      interfaceFee2 ?? EmptyInterfaceFee,
     ]
   ),
 });
@@ -63,177 +126,166 @@ export const buildUpdateVault = ({
     ["address", "uint256", "uint256", "uint256", "bool"].map((type) => ({
       type,
     })),
-    [vault, deposit ?? BigInt(0), redeem ?? BigInt(0), claim ?? BigInt(0), wrap]
+    [vault, deposit ?? 0n, redeem ?? 0n, claim ?? 0n, wrap]
   ),
 });
 
-/* export const buildPlaceOrder = ({
+const PlaceTriggerOrderInputs = [
+  {
+    internalType: "IMarket",
+    name: "market",
+    type: "address",
+  },
+  {
+    type: "tuple",
+    components: [
+      {
+        internalType: "uint8",
+        name: "side",
+        type: "uint8",
+      },
+      {
+        internalType: "int8",
+        name: "comparison",
+        type: "int8",
+      },
+      {
+        internalType: "UFixed6",
+        name: "fee",
+        type: "uint256",
+      },
+      {
+        internalType: "Fixed6",
+        name: "price",
+        type: "int256",
+      },
+      {
+        internalType: "Fixed6",
+        name: "delta",
+        type: "int256",
+      },
+      {
+        type: "tuple",
+        name: "interfaceFee1",
+        components: [
+          {
+            internalType: "UFixed6",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "bool",
+            name: "unwrap",
+            type: "bool",
+          },
+        ],
+      },
+      {
+        type: "tuple",
+        name: "interfaceFee2",
+        components: [
+          {
+            internalType: "UFixed6",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "bool",
+            name: "unwrap",
+            type: "bool",
+          },
+        ],
+      },
+    ],
+  },
+] as const;
+export const buildPlaceTriggerOrder = ({
   market,
-  long,
-  short,
-  triggerType,
-  collateral,
-  handleWrap,
-  order,
-  comparisonOverride,
-  sideOverride,
+  side,
+  comparison,
+  maxFee,
+  triggerPrice,
+  delta,
+  interfaceFee,
+  interfaceFee2,
 }: {
-  market: string
-  long?: BigNumberish
-  short?: BigNumberish
-  triggerType?: TriggerType
-  collateral: BigNumberish
-  handleWrap?: boolean
-  order: TriggerOrderStruct
-  comparisonOverride?: number
-  sideOverride?: number
-}): Actions => {
-  if (!triggerType) triggerType = 'LM'
-
-  order.delta = BigNumber.from(order.delta)
-  order.fee = BigNumber.from(order.fee)
-
-  if (long && short) {
-    if (BigNumber.from(long).gt(short)) {
-      order.side = 1
-      order.delta = BigNumber.from(long).sub(short)
-    } else {
-      order.side = 2
-      order.delta = BigNumber.from(short).sub(long)
-    }
-  } else if (long) {
-    order.side = 1
-    order.delta = long
-  } else if (short) {
-    order.side = 2
-    order.delta = short
-  } else {
-    long = order.side === 1 ? order.delta.abs() : '0'
-    short = order.side === 2 ? order.delta.abs() : '0'
-  }
-
-  order.fee = BigNumber.from(collateral).div(BigNumber.from(order.delta).abs()).mul(order.fee)
-  order = triggerDirection(order, triggerType, comparisonOverride)
-  order.side = sideOverride || sideOverride === 0 ? sideOverride : order.side
-
-  // dont open position if limit order
-  if (triggerType === 'LM') {
-    long = BigNumber.from(0)
-    short = BigNumber.from(0)
-  }
-  return [
+  market: Address;
+  side: PositionSide2.long | PositionSide2.short;
+  comparison: "lte" | "gte";
+  maxFee: bigint;
+  triggerPrice: bigint;
+  delta: bigint;
+  interfaceFee?: {
+    amount: bigint;
+    receiver: Address;
+    unwrap: boolean;
+  };
+  interfaceFee2?: {
+    amount: bigint;
+    receiver: Address;
+    unwrap: boolean;
+  };
+}): MultiInvoker2Action => ({
+  action: 3,
+  args: encodeAbiParameters(PlaceTriggerOrderInputs, [
+    market,
     {
-      action: 1,
-      args: utils.defaultAbiCoder.encode(
-        ['address', 'uint256', 'uint256', 'uint256', 'int256', 'bool'],
-        [
-          market,
-          '0',
-          long ? long : '0',
-          short ? short : '0',
-          collateral ? collateral : '0',
-          handleWrap ? handleWrap : false,
-        ],
-      ),
+      side: side === "long" ? 1 : 2,
+      comparison: comparison === "lte" ? -1 : 1,
+      fee: maxFee,
+      price: triggerPrice,
+      delta,
+      interfaceFee1: interfaceFee ?? EmptyInterfaceFee,
+      interfaceFee2: interfaceFee2 ?? EmptyInterfaceFee,
     },
-    {
-      action: 3,
-      args: utils.defaultAbiCoder.encode(
-        ['address', 'tuple(uint8,int8,uint256,int256,int256)'],
-        [
-          market,
-          [
-            order.side, // default long side
-            order.comparison,
-            order.fee ? order.fee : '0',
-            order.price ? order.price : '0',
-            order.delta ? order.delta : '0',
-          ],
-        ],
-      ),
-    },
-  ]
-} */
-
-/* function triggerDirection(order: TriggerOrderStruct, triggerType: TriggerType, comparisonOverride?: number) {
-  order.delta = BigNumber.from(order.delta)
-
-  order.delta = delta(order.delta, triggerType)
-
-  if (comparisonOverride && comparisonOverride !== 0) {
-    order.comparison = comparisonOverride
-  } else if (
-    (order.side === 1 && (triggerType === 'LM' || triggerType === 'SL')) ||
-    (order.side === 2 && triggerType === 'TP')
-  ) {
-    order.comparison = -1
-  } else {
-    order.comparison = 1
-  }
-
-  return order
-}
-
-function delta(num: BigNumber, trigger: TriggerType) {
-  if (trigger === 'LM') {
-    if (num.isNegative()) return num.mul(-1)
-    return num
-  }
-  if (num.isNegative()) return num
-  return num.mul(-1)
-} */
+  ]),
+});
 
 export const buildCancelOrder = ({
   market,
-  orderId,
+  nonce,
 }: {
   market: Address;
-  orderId: bigint;
+  nonce: bigint;
 }): MultiInvoker2Action => ({
   action: 4,
   args: encodeAbiParameters(
     ["address", "uint256"].map((type) => ({ type })),
-    [market, orderId]
-  ),
-});
-
-export const buildExecOrder = ({
-  user,
-  market,
-  orderId,
-}: {
-  user: Address;
-  market: Address;
-  orderId: bigint;
-}): MultiInvoker2Action => ({
-  action: 5,
-  args: encodeAbiParameters(
-    ["address", "address", "uint256"].map((type) => ({ type })),
-    [user, market, orderId]
+    [market, nonce]
   ),
 });
 
 export const buildCommitPrice = ({
-  oracle,
+  keeperFactory,
   version,
   value,
-  index,
+  ids,
   vaa,
   revertOnFailure,
 }: {
-  oracle: Address;
+  keeperFactory: Address;
   version: bigint;
   value: bigint;
-  index: bigint;
+  ids: string[];
   vaa: string;
   revertOnFailure: boolean;
 }): MultiInvoker2Action => ({
   action: 6,
   args: encodeAbiParameters(
-    ["address", "uint256", "uint256", "uint256", "bytes", "bool"].map(
+    ["address", "uint256", "bytes32[]", "uint256", "bytes", "bool"].map(
       (type) => ({ type })
     ),
-    [oracle, value, index, version, vaa, revertOnFailure]
+    [keeperFactory, value, ids, version, vaa, revertOnFailure]
   ),
 });
 
@@ -260,19 +312,5 @@ export const buildApproveTarget = ({
   args: encodeAbiParameters(
     ["address"].map((type) => ({ type })),
     [target]
-  ),
-});
-
-export const buildInterfaceFee = ({
-  to,
-  amount,
-}: {
-  to: Address;
-  amount: bigint;
-}): MultiInvoker2Action => ({
-  action: 9,
-  args: encodeAbiParameters(
-    ["address", "uint256"].map((type) => ({ type })),
-    [to, amount]
   ),
 });

@@ -12,6 +12,7 @@ import {
   SupportedAsset,
   UserMarketSnapshot,
   fetchVaultSnapshots2,
+  isTestnet,
 } from "perennial-sdk-ts";
 
 // Alchemy Key
@@ -22,7 +23,7 @@ if (!AlchemyURL) throw new Error("Missing alchemy key configuration");
 async function main(url: string, userAddress: Address | undefined) {
   // Get Chain
   const chainID = await createPublicClient({
-    transport: http(AlchemyURL, {
+    transport: http(url, {
       batch: true,
     }),
   }).getChainId();
@@ -32,7 +33,7 @@ async function main(url: string, userAddress: Address | undefined) {
   // Create Public Client
   const publicClient = createPublicClient({
     chain,
-    transport: http(AlchemyURL, {
+    transport: http(url, {
       batch: true,
     }),
   });

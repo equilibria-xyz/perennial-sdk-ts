@@ -111,8 +111,6 @@ export {
   buildApproveTarget,
   buildCancelOrder,
   buildCommitPrice,
-  buildExecOrder,
-  buildInterfaceFee,
   buildLiquidate,
   buildNoop,
   buildUpdateMarket,
