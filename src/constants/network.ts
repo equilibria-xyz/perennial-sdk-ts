@@ -44,7 +44,7 @@ export const isSupportedChain = (chainId?: number) =>
 export const isTestnet = (chainId?: number) =>
   chainId === goerli.id ||
   chainId === arbitrumGoerli.id ||
-  chainId === arbitrumSepolia.id ||
+  // chainId === arbitrumSepolia.id ||
   chainId === baseGoerli.id;
 
 export const DefaultChain = arbitrumGoerli; // chains[0] // TODO revert for mainnet
@@ -129,7 +129,8 @@ const pythClients = {
 };
 
 export const BackupPythClient = new EvmPriceServiceConnection(
-  `https://app.perennial.finance/api/pyth`,
+  // `https://app.perennial.finance/api/pyth`,
+  `https://hermes.pyth.network/`,
   {
     timeout: 30000,
     priceFeedRequestConfig: { binary: true },
