@@ -114,8 +114,8 @@ export const interfaceFeeBps: {
   },
 };
 
-export const PythMainnetUrl = "https://hermes.pyth.network/";
-export const PythTestnetUrl = "https://hermes-beta.pyth.network/";
+export const PythMainnetUrl = "https://hermes.pyth.network";
+export const PythTestnetUrl = "https://hermes-beta.pyth.network";
 
 const pythClients = {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
