@@ -1,6 +1,7 @@
 import {
   arbitrum,
   arbitrumGoerli,
+  arbitrumSepolia,
   base,
   baseGoerli,
   goerli,
@@ -21,6 +22,7 @@ export const SupportedVaults: {
   [arbitrumGoerli.id]: { alpha: true, bravo: false },
   [arbitrum.id]: { alpha: true, bravo: true },
   [base.id]: { alpha: false, bravo: false },
+  [arbitrumSepolia.id]: { alpha: false, bravo: false },
 };
 
 export const VaultMetadata: {
@@ -33,6 +35,10 @@ export const VaultMetadata: {
     [PerennialVaultType.bravo]: { name: "BTC Vault" },
   },
   [arbitrum.id]: {
+    [PerennialVaultType.alpha]: { name: "ETH Vault" },
+    [PerennialVaultType.bravo]: { name: "BTC Vault" },
+  },
+  [arbitrumSepolia.id]: {
     [PerennialVaultType.alpha]: { name: "ETH Vault" },
     [PerennialVaultType.bravo]: { name: "BTC Vault" },
   },
@@ -51,6 +57,9 @@ export const ChainVaults2: {
   [arbitrum.id]: {
     alpha: getAddress("0xF8b6010FD6ba8F3E52c943A1473B1b1459a73094"),
     bravo: getAddress("0x699e37DfCEe5c6E4c5D0bC1C2FFbC2afEC55f6FB"),
+  },
+  [arbitrumSepolia.id]: {
+    alpha: getAddress("0xB3820Ef7fF9cbd3f9FF9176C19464b3178fB2bC3"),
   },
   [base.id]: {},
 };

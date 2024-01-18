@@ -4,6 +4,7 @@ import { linearTransform, microPowerTwoTransform } from "../utils/payoffUtils";
 import {
   arbitrum,
   arbitrumGoerli,
+  arbitrumSepolia,
   base,
   baseGoerli,
   goerli,
@@ -205,6 +206,11 @@ export const ChainMarkets2: {
     [asset in SupportedAsset]?: Address;
   };
 } = {
+  [arbitrumSepolia.id]: {
+    [SupportedAsset.eth]: getAddress(
+      "0x0142a8bfF8D887Fc4f04469fCA6c66F5e0936Ea7"
+    ),
+  },
   [arbitrumGoerli.id]: {
     [SupportedAsset.eth]: getAddress(
       "0xf5Ae549Af3b600086F555aA4e41f3BB8A2EfEf4c"
@@ -267,7 +273,6 @@ export const chainAssetsWithAddress = (chainId: SupportedChainId) => {
     )
     .filter(notEmpty);
 };
-
 export const addressToAsset2 = (address: Address) => {
   for (const chainId of Object.keys(ChainMarkets2)) {
     for (const asset of Object.keys(
@@ -283,3 +288,8 @@ export const addressToAsset2 = (address: Address) => {
     }
   }
 };
+
+export enum TriggerComparison {
+  lte = "lte",
+  gte = "gte",
+}

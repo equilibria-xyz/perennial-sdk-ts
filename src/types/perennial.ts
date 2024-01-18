@@ -25,3 +25,11 @@ export type JumpRateUtilizationCurve = AbiParametersToPrimitiveTypes<
 export type MultiInvoker2Action = AbiParametersToPrimitiveTypes<
   ExtractAbiFunction<typeof MultiInvoker2Abi, "invoke">["inputs"]
 >[0][0];
+
+export type ReferrerInterfaceFeeInfo = {
+  referralCode: string;
+  referralTarget: string;
+  share: bigint;
+  discount: bigint;
+  tier: string;
+} | null;

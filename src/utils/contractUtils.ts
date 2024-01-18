@@ -7,6 +7,7 @@ import { MarketAbi } from "../abi/Market.abi";
 import { OracleAbi } from "../abi/Oracle.abi";
 import { PythOracleAbi } from "../abi/PythOracle.abi";
 import { VaultAbi } from "../abi/Vault.abi";
+import { KeeperOracleAbi } from "../abi/KeeperOracle.abi";
 
 // export function getVaultForType(vaultType: PerennialVaultType, chainId: SupportedChainId, signer?: WalletClient) {
 //   const address = getVaultAddressForType(vaultType, chainId)
@@ -39,6 +40,17 @@ export function getOracleContract(
   publicClient: PublicClient
 ) {
   return getContract({ abi: OracleAbi, address: oracleAddress, publicClient });
+}
+
+export function getKeeperOracleContract(
+  keeperOracleAddress: Address,
+  publicClient?: PublicClient
+) {
+  return getContract({
+    abi: KeeperOracleAbi,
+    address: keeperOracleAddress,
+    publicClient,
+  });
 }
 
 export function getPythProviderContract(

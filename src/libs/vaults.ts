@@ -53,6 +53,10 @@ export type VaultAccountSnapshot2 = ChainVaultAccountSnapshot & {
   pre: ChainVaultAccountSnapshot;
 };
 
+// export type OpenOrder = NonNullable<
+//   NonNullable<Awaited<ReturnType<typeof useOpenOrders>['data']>>['pages'][number]
+// >['openOrders'][number]
+
 export const fetchVaultSnapshots2 = async (
   publicClient: PublicClient,
   address_: Address,
@@ -147,7 +151,6 @@ const fetchVaultSnapshotsAfterSettle = async (
   });
 
   const vaultAddresses = vaults.map(({ vaultAddress }) => vaultAddress);
-
   const ethCallPayload = {
     to: vaultLensAddress,
     from: address,

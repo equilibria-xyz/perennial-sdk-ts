@@ -1,4 +1,4 @@
-export const PythOracleAbi = [
+export const PythFactoryAbi = [
   {
     inputs: [
       {

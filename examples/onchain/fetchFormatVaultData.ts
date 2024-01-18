@@ -8,15 +8,11 @@ import {
 
 import {
   chains,
-  fetchMarketSnapshots2,
-  calcSkew,
-  calcMakerExposure,
-  calcLpUtilization,
   SupportedChainId,
   SupportedAsset,
   UserMarketSnapshot,
-  MarketSnapshot,
   fetchVaultSnapshots2,
+  isTestnet,
 } from "perennial-sdk-ts";
 
 // Alchemy Key
@@ -32,7 +28,7 @@ async function main(
 ) {
   // Get Chain
   const chainID = await createPublicClient({
-    transport: http(AlchemyURL, {
+    transport: http(url, {
       batch: true,
     }),
   }).getChainId();
@@ -42,7 +38,7 @@ async function main(
   // Create Public Client
   const publicClient = createPublicClient({
     chain,
-    transport: http(AlchemyURL, {
+    transport: http(url, {
       batch: true,
     }),
   });
