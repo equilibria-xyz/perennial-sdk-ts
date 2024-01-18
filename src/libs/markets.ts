@@ -135,14 +135,15 @@ export const fetchMarketOracles2 = async (
     const [keeperOracle] = await oracle.read.oracles([global[0]]);
 
     // KeeperOracle -> Feed
-    const feedEvents = await pythFactory.getEvents.OracleCreated(
+    /* const feedEvents = await pythFactory.getEvents.OracleCreated(
       { oracle: keeperOracle },
       {
         fromBlock: 0n,
         toBlock: "latest",
       }
-    );
-    const feed = feedEvents[0].args.id;
+    ); */
+    // For now, pull FeedId directly from AssetMetadata
+    const feed = AssetMetadata[asset].pythFeedId as Hex;
     if (!feed) throw new Error(`No feed found for ${keeperOracle}`);
 
     const [validFrom, underlyingId] = await Promise.all([
