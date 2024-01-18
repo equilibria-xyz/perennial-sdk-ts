@@ -24,7 +24,12 @@ const AlchemyURL = process.env.ALCHEMY_URL;
 if (!AlchemyURL) throw new Error("Missing alchemy key configuration");
 
 /// Fetch Maker Data
-async function main(url: string, userAddress: Address | undefined) {
+async function main(
+  url: string,
+  userAddress: Address | undefined,
+  vaults: string[],
+  assets: string[]
+) {
   // Get Chain
   const chainID = await createPublicClient({
     transport: http(AlchemyURL, {
@@ -43,7 +48,13 @@ async function main(url: string, userAddress: Address | undefined) {
   });
 
   if (!userAddress) throw new Error("Missing user address");
-  const vaultInfo = await fetchVaultSnapshots2(publicClient, userAddress);
+  
+  const vaultInfo = await fetchVaultSnapshots2(
+    publicClient,
+    userAddress,
+    vaults,
+    assets
+  );
 
   if (!vaultInfo) throw new Error("No Vault info found");
 
@@ -75,4 +86,9 @@ async function main(url: string, userAddress: Address | undefined) {
   console.log({ user: vaultsWithUserPositions, global: vaultGlobals });
 }
 
-main(AlchemyURL, "0x76d9c28e888816b28857e75e7859d6b6907cf76c");
+main(
+  AlchemyURL,
+  "0x76d9c28e888816b28857e75e7859d6b6907cf76c",
+  ["alpha"],
+  ["eth", "link"]
+);

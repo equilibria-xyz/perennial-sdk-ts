@@ -55,15 +55,22 @@ export type VaultAccountSnapshot2 = ChainVaultAccountSnapshot & {
 
 export const fetchVaultSnapshots2 = async (
   publicClient: PublicClient,
-  address_: Address
+  address_: Address,
+  vaultList?: string[],
+  assetList?: string[]
 ) => {
   if (!publicClient.chain) throw new Error("Missing chain");
   const chainId = publicClient.chain.id as SupportedChainId;
   const providerUrl: string = publicClient.transport.url;
   const address = address_ ?? zeroAddress;
 
-  const vaults = chainVaultsWithAddress(chainId);
-  const marketOracles = await fetchMarketOracles2(publicClient);
+  const vaults = vaultList
+    ? chainVaultsWithAddress(chainId).filter((m) =>
+        vaultList.includes(m.vault as SupportedAsset)
+      )
+    : chainVaultsWithAddress(chainId);
+
+  const marketOracles = await fetchMarketOracles2(publicClient, assetList);
   const pyth = usePyth(publicClient);
 
   if (!vaults || !vaults.length || !marketOracles) return;

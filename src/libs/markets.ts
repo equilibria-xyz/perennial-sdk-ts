@@ -93,12 +93,17 @@ export type MarketOracles = NonNullable<
   Awaited<ReturnType<typeof fetchMarketOracles2>>
 >;
 
-export const fetchMarketOracles2 = async (publicClient: PublicClient) => {
+export const fetchMarketOracles2 = async (
+  publicClient: PublicClient,
+  assetList?: string[]
+) => {
   if (!publicClient.chain) throw new Error("Missing chain");
   const chainId = publicClient.chain.id as SupportedChainId;
 
   // Get markets
-  const markets = chainAssetsWithAddress(chainId);
+  const markets = assetList
+    ? chainAssetsWithAddress(chainId).filter((m) => assetList.includes(m.asset))
+    : chainAssetsWithAddress(chainId);
   // Get Oracles for markets
   const fetchMarketOracles = async (
     asset: SupportedAsset,
@@ -173,9 +178,10 @@ export type MarketSnapshots = NonNullable<
 
 export const fetchMarketSnapshots2 = async (
   publicClient: PublicClient,
-  addressOverride?: Address
+  addressOverride?: Address,
+  assetList?: string[]
 ) => {
-  const marketOracles = await fetchMarketOracles2(publicClient);
+  const marketOracles = await fetchMarketOracles2(publicClient, assetList);
   const pyth = usePyth(publicClient);
   const address = addressOverride || zeroAddress;
 

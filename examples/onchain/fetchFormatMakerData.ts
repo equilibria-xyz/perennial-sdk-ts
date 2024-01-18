@@ -23,7 +23,11 @@ const AlchemyURL = process.env.ALCHEMY_URL;
 if (!AlchemyURL) throw new Error("Missing alchemy key configuration");
 
 /// Fetch Maker Data
-async function main(url: string, userAddress: Address | undefined) {
+async function main(
+  url: string,
+  userAddress: Address | undefined,
+  assets: string[]
+) {
   // Get Chain
   const chainID = await createPublicClient({
     transport: http(AlchemyURL, {
@@ -43,9 +47,12 @@ async function main(url: string, userAddress: Address | undefined) {
 
   const marketInfo = await fetchMarketSnapshots2(
     publicClient as PublicClient,
-    userAddress
+    userAddress,
+    assets
   );
+  
   if (!marketInfo) throw new Error("No market info found");
+  console.log(marketInfo);
 
   // Filter out user positions with no exposure
   const marketsWithUserPositions =
@@ -136,4 +143,4 @@ async function main(url: string, userAddress: Address | undefined) {
   return { user: userAddress, chain: chainID, data };
 }
 
-main(AlchemyURL, zeroAddress);
+main(AlchemyURL, zeroAddress, ["eth", "btc", "sol"]);
