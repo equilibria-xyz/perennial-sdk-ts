@@ -1,6 +1,10 @@
 import { Address, getAddress } from "viem";
 import { SupportedChainId } from "./network";
-import { linearTransform, microPowerTwoTransform } from "../utils/payoffUtils";
+import {
+  centimilliPowerTwoTransform,
+  linearTransform,
+  microPowerTwoTransform,
+} from "../utils/payoffUtils";
 import {
   arbitrum,
   arbitrumGoerli,
@@ -23,7 +27,9 @@ export enum SupportedAsset {
   link = "link",
   bnb = "bnb",
   xrp = "xrp",
-  msqBTC = "BTC²",
+  msqBTC = "btc²",
+  cmsqETH = "eth²",
+  jup = "jup",
 }
 
 export enum QuoteCurrency {
@@ -61,7 +67,7 @@ export type AssetMetadata = {
     baseCurrency: SupportedAsset;
     quoteCurrency: QuoteCurrency;
     pythFeedId: string;
-    pythFeedIdTestnet: string;
+    pythFeedIdTestnet?: string;
     transform: (value: bigint) => bigint;
   };
 };
@@ -190,17 +196,34 @@ export const AssetMetadata: AssetMetadata = {
   [SupportedAsset.msqBTC]: {
     symbol: "BTC²-USD",
     name: "Bitcoin²",
-    displayDecimals: 2,
+    displayDecimals: 6,
     baseCurrency: SupportedAsset.msqBTC,
     quoteCurrency: QuoteCurrency.usd,
     pythFeedId:
       "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
-    pythFeedIdTestnet:
-      "0xf9c0172ba10dfa4d19088d94f5bf61d3b54d5bd7483a322a982e1373ee8ea31b",
     transform: microPowerTwoTransform,
   },
+  [SupportedAsset.cmsqETH]: {
+    symbol: "ETH²-USD",
+    name: "Ethereum²",
+    displayDecimals: 6,
+    baseCurrency: SupportedAsset.cmsqETH,
+    quoteCurrency: QuoteCurrency.usd,
+    pythFeedId:
+      "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+    transform: centimilliPowerTwoTransform,
+  },
+  [SupportedAsset.jup]: {
+    symbol: "JUP-USD",
+    name: "Jupiter",
+    displayDecimals: 6,
+    baseCurrency: SupportedAsset.jup,
+    quoteCurrency: QuoteCurrency.usd,
+    pythFeedId:
+      "0x0a0408d619e9380abad35060f9192039ed5042fa6f82301d0e48bb52be830996",
+    transform: linearTransform,
+  },
 };
-
 export const ChainMarkets2: {
   [chainId in SupportedChainId]: {
     [asset in SupportedAsset]?: Address;
@@ -261,6 +284,15 @@ export const ChainMarkets2: {
     ),
     [SupportedAsset.arb]: getAddress(
       "0x3D1D603073b3CEAB5974Db5C54568058a9551cCC"
+    ),
+    [SupportedAsset.msqBTC]: getAddress(
+      "0x768a5909f0B6997efa56761A89344eA2BD5560fd"
+    ),
+    [SupportedAsset.cmsqETH]: getAddress(
+      "0x004E1Abf70e4FF99BC572843B63a63a58FAa08FF"
+    ),
+    [SupportedAsset.jup]: getAddress(
+      "0xbfa99F19a376F25968865983c41535fa368B28da"
     ),
   },
   [base.id]: {},

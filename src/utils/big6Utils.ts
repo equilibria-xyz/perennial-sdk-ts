@@ -141,4 +141,23 @@ export class Big6Math {
   public static to18Decimals(amount: bigint): bigint {
     return amount * BigInt("1000000000000");
   }
+  public static sqrt(a: bigint): bigint {
+    if (a < 0n) {
+      throw "square root of negative numbers is not supported";
+    }
+
+    if (a < 2n) {
+      return a;
+    }
+
+    function newtonIteration(n: bigint, x0: bigint): bigint {
+      const x1 = (n / x0 + x0) >> 1n;
+      if (x0 === x1 || x0 === x1 - 1n) {
+        return x0;
+      }
+      return newtonIteration(n, x1);
+    }
+
+    return newtonIteration(a, 1n);
+  }
 }
