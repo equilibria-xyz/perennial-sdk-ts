@@ -1,3 +1,9 @@
+//////////////////////////////////////////////////
+// Small Script to send a transaction to the chain
+// Uses Anvil to fork a chain and simulate responses
+// Use the below script to execute the command:
+// ALCHEMY_KEY=XXXX CHAIN_ID=XXX npx esno examples/onchain/sendTransation.ts
+
 import "dotenv/config";
 import {
   SupportedChainId,
